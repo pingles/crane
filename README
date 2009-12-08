@@ -1,3 +1,8 @@
+To build:
+
+1. Download and install leiningen http://github.com/technomancy/leiningen
+2. $ lein deps
+3. $ lein install
 
 core libs for s3, ec2, ssh.
 
