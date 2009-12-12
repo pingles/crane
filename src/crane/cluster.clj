@@ -49,7 +49,7 @@ be advised that find master returns nil if the master has been reserved but is n
 (defn user-bytes 
 ([conf host]
 (let [cred (creds (:creds conf))]
-  (bytes (user-data
+  (get-bytes (user-data
 	  (init-remote 
 	   (:init-remote conf)) 
 	  cred
@@ -57,7 +57,7 @@ be advised that find master returns nil if the master has been reserved but is n
 
 ([conf]
 (let [cred (creds (:creds conf))]
-  (bytes (user-data
+  (get-bytes (user-data
 	  (init-remote 
 	   (:init-remote conf)) 
 	  cred)))))

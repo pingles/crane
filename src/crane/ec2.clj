@@ -187,7 +187,7 @@ it is returning the single first instance, maybe it should return all instances?
   (let [group-name (:group conf)
 	cred (creds (:creds conf))
 	defaults {:instances 1
-		  :user-data (bytes "")
+		  :user-data (get-bytes "")
 		  :monitoring false}
 	new-conf (merge defaults conf cred)]
     (if (already-running? ec2 group-name (:instances new-conf))

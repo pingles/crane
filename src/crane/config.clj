@@ -34,7 +34,7 @@
   (replace-all (user-data config-path creds)
       [["MASTER_HOST" master-host]])))
 
-(defn bytes [x] (.getBytes x))
+(defn get-bytes [x] (.getBytes x))
 
 (defn conf
   "provide the path to your config info directory containing aws.clj

@@ -1,8 +1,9 @@
 build
 target
-
+lib
 # use glob syntax.
 syntax: glob
+*.jar
 *.ser
 *.class
 *~
