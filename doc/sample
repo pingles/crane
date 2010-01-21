@@ -1,0 +1,13 @@
+How to start an ec2 cluster using crane.
+
+;;read in creds "creds.clj"
+crane.cluser> (def my-creds (creds "/path/to/creds-dir/"))
+
+;;read in config "aws.clj"
+crane.cluster> (def my-conf (conf "/path/to/conf-dir"))
+
+;;create new Jec2 class
+crane.cluster> (def ec (ec2 (creds "/path/to/creds-dir")))
+
+;;start cluster 
+(launch-hadoop-cluster ec my-conf)
