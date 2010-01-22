@@ -3,8 +3,23 @@ How to start an ec2 cluster using crane.
 ;;read in creds "creds.clj"
 crane.cluser> (def my-creds (creds "/path/to/creds-dir/"))
 
+{:key "AWS-KEY"
+ :secretkey "AWS-SECRET-KEY"
+ :private-key-path "/path/to/private-key"
+ :key-name "key-name"}
+
 ;;read in config "aws.clj"
 crane.cluster> (def my-conf (conf "/path/to/conf-dir"))
+
+{:image "ami-"
+ :instance-type :m1.large
+ :group "ec2-group"
+ :instances int
+ :instances int
+ :creds "/path/to/creds.clj-dir"
+ :push ["/file/to/push"
+        "/another/file/to/push"]
+ :init-remote "/path/to/init-remote-dir"
 
 ;;create new Jec2 class
 crane.cluster> (def ec (ec2 (creds "/path/to/creds-dir")))
