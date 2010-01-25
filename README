@@ -1,10 +1,15 @@
 To build:
 
 1. Download and install leiningen http://github.com/technomancy/leiningen
-2. $ lein deps
-3. $ lein install
+2. Setup jclouds maven snapshot at http://jclouds.rimuhosting.com/maven2/snapshots
+3. $ lein deps
+4. $ lein install
+5. $ java -cp `ls lib/*|xargs echo|sed 's/ /:/g'`:classes jline.ConsoleRunner clojure.main
 
-core libs for s3, ec2, ssh.
+core libs for compute cloud, blobstore, and ssh.
+
+supported compute clouds: ec2, rackspace, rimuhosting, vcloud, terremark, hosting.com
+supported blobstores: s3, rackspace, azure, atmos online
 
 build upon the core is remote repl and cluster capabilities.
 
@@ -19,7 +24,30 @@ remote repl evaluation.
 eval! 
 (eval! socket (execute (workflow some-cascading-workflow)))
 
-TODO: add examples for usages.
+Cloud Examples:
+
+Here's a quick example of how to view compute and blob resources.
+
+(ns crane.jclouds
+  (:use crane.blobstore)
+  (:use crane.compute)
+  (:use clojure.contrib.pprint)
+)
+
+ (def user  "rackspace_username")
+ (def password "rackspace_password")
+
+ (def compute-name "cloudservers")
+ (def compute (compute-context compute-name user password))
+ (def blobstore-name "cloudfiles")
+ (def blobstore (blobstore-context blobstore-name user password ))
+
+ (pprint (images compute))
+ (pprint (nodes compute))
+ (pprint (sizes compute))
+
+ (pprint (containers blobstore))
+ (pprint (blobs blobstore "your_container_name" )) 
 
 
 TODO:
