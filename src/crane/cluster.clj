@@ -47,22 +47,10 @@ be advised that find master returns nil if the master has been reserved but is n
 (str "http://" host ":50030"))
 
 (defn user-bytes 
-([conf host]
-(let [cred (creds (:creds conf))]
-  (get-bytes (user-data
-	  (init-remote 
-	   (:init-remote conf)) 
-	  cred
-	  host))))
+[conf]
+(get-bytes (slurp (:user-data conf))))
 
-([conf]
-(let [cred (creds (:creds conf))]
-  (get-bytes (user-data
-	  (init-remote 
-	   (:init-remote conf)) 
-	  cred)))))
-
-(defn launch-hadoop-master 
+(defn launch-master 
   [ec2 conf]
   (let [cluster (:group conf)
 	cred (creds (:creds conf))
@@ -81,7 +69,7 @@ be advised that find master returns nil if the master has been reserved but is n
 	(chmod session 600 "/root/.ssh/id_rsa"))
       master))
 
-(defn launch-hadoop-slaves 
+(defn launch-slaves 
   "launch n hadoop slaves and attach to cluster master.
 
  TODO: you can use the same function to add slaves to a running job, but it won't take care of slaves file and such?
@@ -92,10 +80,10 @@ be advised that find master returns nil if the master has been reserved but is n
      ec2 
      (merge 
       conf
-      {:user-data (user-bytes conf (:private (attributes master)))   
+      {:user-data (user-bytes conf)   
        :monitoring false}))))
 
-(defn launch-hadoop-cluster 
+(defn launch-cluster 
  "Launch an EC2 cluster of Hadoop instances.
 
  workflow for adding slaves to a cluster:
@@ -104,10 +92,10 @@ be advised that find master returns nil if the master has been reserved but is n
  -add slaves to slaves file on master
  -start services
 "
-([conf] (launch-hadoop-cluster (ec2 (creds (:creds conf))) conf))
+([conf] (launch-cluster (ec2 (creds (:creds conf))) conf))
 ([ec2 conf] 
-(let [master (launch-hadoop-master ec2 conf)
-      slaves (launch-hadoop-slaves ec2 conf master)
+(let [master (launch-master ec2 conf)
+      slaves (launch-slaves ec2 conf master)
       slave-ips (map 
 		 #(:private (attributes %)) 
 		 slaves)
