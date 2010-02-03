@@ -1,10 +1,9 @@
 To build:
 
 1. Download and install leiningen http://github.com/technomancy/leiningen
-2. Setup jclouds maven snapshot at http://jclouds.rimuhosting.com/maven2/snapshots
-3. $ lein deps
-4. $ lein install
-5. $ java -cp `ls lib/*|xargs echo|sed 's/ /:/g'`:classes jline.ConsoleRunner clojure.main
+2. $ lein deps
+3. $ lein install
+4. $ java -cp `ls lib/*|xargs echo|sed 's/ /:/g'`:classes jline.ConsoleRunner clojure.main
 
 core libs for compute cloud, blobstore, and ssh.
 
@@ -42,6 +41,7 @@ Here's a quick example of how to view compute and blob resources.
  (def blobstore-name "cloudfiles")
  (def blobstore (blobstore-context blobstore-name user password ))
 
+ (pprint (locations compute))
  (pprint (images compute))
  (pprint (nodes compute))
  (pprint (sizes compute))

@@ -6,7 +6,7 @@ a lib for interacting with jclouds ComputeService.
 Current supported services are:
    [ec2, rimuhosting, terremark, vcloud, hostingdotcom]
 
-Here's an example of listing some compute configuration from rackspace:
+Here's an example of getting some compute configuration from rackspace:
 
 (ns crane.jclouds
   (:use crane.compute)
@@ -19,6 +19,7 @@ Here's an example of listing some compute configuration from rackspace:
 
  (def compute (compute-context compute-name user password))
 
+ (pprint (locations compute))
  (pprint (images compute))
  (pprint (nodes compute))
  (pprint (sizes compute))
@@ -28,6 +29,7 @@ crane.compute
 
   (:use clojure.contrib.duck-streams)
   (:import java.io.File)
+  (:import org.jclouds.domain.Location)
   (:import org.jclouds.compute.ComputeService)
   (:import org.jclouds.compute.ComputeServiceContext)
   (:import org.jclouds.compute.ComputeServiceContextFactory)
@@ -43,12 +45,28 @@ crane.compute
      (compute-context service account key))
   ([s a k] (.createContext (new ComputeServiceContextFactory) s a k )))
 
+(defn locations
+
+"
+http://code.google.com/p/jclouds
+ 
+get the nodes in a service:
+compute -> locations
+
+example: (pprint
+(locations
+(compute-context service flightcaster-creds))
+"
+  ([compute]
+     (.getLocations (.getComputeService compute)))
+)
+
 (defn nodes
 
 "
 http://code.google.com/p/jclouds
  
-list the nodes in a service:
+get the nodes in a service:
 compute -> nodes
 
 example: (pprint
@@ -56,7 +74,7 @@ example: (pprint
 (compute-context service flightcaster-creds))
 "
   ([compute]
-     (.listNodes (.getComputeService compute)))
+     (.getNodes (.getComputeService compute)))
 )
 
 (defn images
@@ -64,7 +82,7 @@ example: (pprint
 "
 http://code.google.com/p/jclouds
 
-list the images in a service:
+get the images in a service:
 compute -> images
 
 example: (pprint
@@ -72,7 +90,7 @@ example: (pprint
 (compute-context service flightcaster-creds)))
 "
   ([compute]
-     (.listImages (.getComputeService compute)))
+     (.getImages (.getComputeService compute)))
 )
 
 (defn sizes
@@ -80,7 +98,7 @@ example: (pprint
 "
 http://code.google.com/p/jclouds
 
-list the sizes in a service:
+get the sizes in a service:
 compute -> sizes
 
 example: (pprint
@@ -88,28 +106,28 @@ example: (pprint
 (compute-context service flightcaster-creds)))
 "
   ([compute]
-     (.listSizes (.getComputeService compute)))
+     (.getSizes (.getComputeService compute)))
 )
 
-(defn run-node
+(defn run-nodes
 
 "
 http://code.google.com/p/jclouds
  
-create and run a node in a service:
-compute name template -> node
+create and run nodes in a service:
+compute tag count template -> node
 
-the node will be running when this completes and contain ssh credentials, which may be a password or a private key.  Note that for many clouds, this is the only opportunity to get the ssh credentials.
+the node will be running when this completes and contain ssh credentials, which may be a password or a private key.  Note that for many clouds, this is the only opportunity to.get the ssh credentials.
 
 example: (pprint
-(run-node
-(compute-context service flightcaster-creds) name template))
+(run-nodes
+(compute-context service flightcaster-creds) tag count template))
 "
-  ([compute name template]
-     (.runNode (.getComputeService compute) name template))
+  ([compute tag count template]
+     (.runNode (.getComputeService compute) tag count template))
 )
 
-(defn get-node-details
+(defn node-details
 
 "
 http://code.google.com/p/jclouds
@@ -118,7 +136,7 @@ get more info on a node:
 compute node -> node
 
 example: (pprint
-(get-node-details
+(node-details
 (compute-context service flightcaster-creds) node ))
 "
   ([compute node]
