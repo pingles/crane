@@ -19,10 +19,9 @@ DFS_NAME_DIR=/mnt/hadoop/hdfs/name
 FS_CHECKPOINT_DIR=/mnt/hadoop/hdfs/secondary
 DFS_DATA_DIR=/mnt/hadoop/hdfs/data
 FIRST_MOUNT=/mnt
-DFS_REPLICATION=3
+DFS_REPLICATION=3 
 
-   
-
+MASTER_HOST=%MASTER_HOST%  
 
 cat >  /etc/sysctl.conf <<END
 # Workaround for TCP Window Scaling bugs in other ppl's equipment:
@@ -227,7 +226,7 @@ cat > $HADOOP_HOME/conf/hadoop-site.xml <<EOF
 EOF
 
 ################################################################################
-# Start services
+# final settings
 ################################################################################
 mkdir -p /mnt/hadoop/logs
 
