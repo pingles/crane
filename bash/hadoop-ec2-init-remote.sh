@@ -9,10 +9,6 @@
 # Initialize variables
 ################################################################################
 
-# Slaves are started after the master, and are told its address by sending a
-# modified copy of this file which sets the MASTER_HOST variable. 
-# A node  knows if it is the master or not by inspecting the security group
-# name. If it is the master then it retrieves its address using instance data.    
 MAX_MAP_TASKS=1
 MAX_REDUCE_TASKS=1
 CHILD_OPTS=-Xmx1536m
@@ -35,12 +31,8 @@ net.ipv4.tcp_wmem = 4096 16384 512000
 net.ipv4.tcp_rmem = 4096 87380 512000
 END
 
-MASTER_HOST=%MASTER_HOST% # Interpolated before being sent to EC2 node
 SECURITY_GROUPS=`wget -q -O - http://169.254.169.254/latest/meta-data/security-groups`
 IS_MASTER=`echo $SECURITY_GROUPS | awk '{ a = match ($0, "-master$"); if (a) print "true"; else print "false"; }'`
-if [ "$IS_MASTER" == "true" ]; then
- MASTER_HOST=`wget -q -O - http://169.254.169.254/latest/meta-data/local-hostname`
-fi
 
 AWS_ACCESS_KEY_ID=%AWS_ACCESS_KEY_ID%
 AWS_SECRET_ACCESS_KEY=%AWS_SECRET_ACCESS_KEY%
@@ -237,14 +229,6 @@ EOF
 ################################################################################
 # Start services
 ################################################################################
-cp /etc/hosts /tmp/hosts
-sed '1d' /tmp/hosts > /etc/hosts
-rm -rf /tmp/hosts
-echo "$MASTER_HOST" > /tmp/hosts
-cat /etc/hosts >> /tmp/hosts
-mv /tmp/hosts /etc/hosts
-
-echo "$MASTER_HOST" > /usr/local/hadoop-0.20.1/conf/masters
 mkdir -p /mnt/hadoop/logs
 
 # not set on boot
