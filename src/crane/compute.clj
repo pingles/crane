@@ -29,132 +29,76 @@ crane.compute
 
   (:use clojure.contrib.duck-streams)
   (:import java.io.File)
+  (:import org.jclouds.compute.domain.OsFamily)
   (:import org.jclouds.domain.Location)
   (:import org.jclouds.compute.ComputeService)
   (:import org.jclouds.compute.ComputeServiceContext)
   (:import org.jclouds.compute.ComputeServiceContextFactory)
+  (:import org.jclouds.logging.log4j.config.Log4JLoggingModule)
+  (:import org.jclouds.ssh.jsch.config.JschSshClientModule)
+  (:import org.jclouds.enterprise.config.EnterpriseConfigurationModule)
   (:import org.jclouds.compute.domain.Template)
   (:import org.jclouds.compute.domain.TemplateBuilder)
   (:import org.jclouds.compute.domain.ComputeMetadata)
   (:import org.jclouds.compute.domain.Size)
   (:import org.jclouds.compute.domain.Image))
  
+(defn modules
+  "Build a list of modules suitable for passing to compute-context"
+  [& modules]
+  (.build (reduce #(.add %1 %2)
+		  (com.google.common.collect.ImmutableSet/builder)
+		  modules)))
+
 (defn compute-context
+  ([s a k] (.createContext (new ComputeServiceContextFactory) s a k (modules
+    (new Log4JLoggingModule)
+    (new JschSshClientModule)
+    (new EnterpriseConfigurationModule))))
+  ([s a k m] (.createContext (new ComputeServiceContextFactory) s a k m)))
 
-  ([{service :service account :account key :key}]
-     (compute-context service account key))
-  ([s a k] (.createContext (new ComputeServiceContextFactory) s a k )))
+(defn locations [#^org.jclouds.compute.ComputeServiceContext compute]
+  (.getLocations (.getComputeService compute)))
 
-(defn locations
+(defn nodes 
+  ([#^org.jclouds.compute.ComputeServiceContext compute]
+    (.getNodes (.getComputeService compute) ))
+  ([#^org.jclouds.compute.ComputeServiceContext compute #^String tag]
+    (.getNodesWithTag (.getComputeService compute) tag )))
 
-"
-http://code.google.com/p/jclouds
- 
-get the nodes in a service:
-compute -> locations
+(defn images [#^org.jclouds.compute.ComputeServiceContext compute]
+  (.getImages (.getComputeService compute)))
 
-example: (pprint
-(locations
-(compute-context service flightcaster-creds))
-"
-  ([compute]
-     (.getLocations (.getComputeService compute)))
-)
+(defn sizes [#^org.jclouds.compute.ComputeServiceContext compute]
+  (.getSizes (.getComputeService compute)))
 
-(defn nodes
-
-"
-http://code.google.com/p/jclouds
- 
-get the nodes in a service:
-compute -> nodes
-
-example: (pprint
-(nodes
-(compute-context service flightcaster-creds))
-"
-  ([compute]
-     (.getNodes (.getComputeService compute)))
-)
-
-(defn images
-
-"
-http://code.google.com/p/jclouds
-
-get the images in a service:
-compute -> images
-
-example: (pprint
-(images
-(compute-context service flightcaster-creds)))
-"
-  ([compute]
-     (.getImages (.getComputeService compute)))
-)
-
-(defn sizes
-
-"
-http://code.google.com/p/jclouds
-
-get the sizes in a service:
-compute -> sizes
-
-example: (pprint
-(sizes
-(compute-context service flightcaster-creds)))
-"
-  ([compute]
-     (.getSizes (.getComputeService compute)))
-)
+(defn default-template [#^org.jclouds.compute.ComputeServiceContext compute]
+  (.. compute (getComputeService) (templateBuilder)
+    (osFamily OsFamily/UBUNTU)
+    smallest
+    (options (org.jclouds.compute.options.TemplateOptions$Builder/authorizePublicKey (slurp (str (. System getProperty "user.home") "/.ssh/id_rsa.pub"))))
+    build))
 
 (defn run-nodes
+  ([#^org.jclouds.compute.ComputeServiceContext compute tag count]
+    (.runNodesWithTag (.getComputeService compute) tag count (default-template compute)))
+  ([#^org.jclouds.compute.ComputeServiceContext compute tag count template]
+    (.runNodesWithTag (.getComputeService compute) tag count template)))
 
-"
-http://code.google.com/p/jclouds
- 
-create and run nodes in a service:
-compute tag count template -> node
+(defn run-node
+  ([#^org.jclouds.compute.ComputeServiceContext compute tag]
+    (run-nodes compute tag 1))
+  ([#^org.jclouds.compute.ComputeServiceContext compute tag template]
+    (run-nodes compute tag 1 template)))
 
-the node will be running when this completes and contain ssh credentials, which may be a password or a private key.  Note that for many clouds, this is the only opportunity to.get the ssh credentials.
+(defn node-details [#^org.jclouds.compute.ComputeServiceContext compute node]
+  (.getNodeMetadata (.getComputeService compute) node ))
 
-example: (pprint
-(run-nodes
-(compute-context service flightcaster-creds) tag count template))
-"
-  ([compute tag count template]
-     (.runNode (.getComputeService compute) tag count template))
-)
-
-(defn node-details
-
-"
-http://code.google.com/p/jclouds
- 
-get more info on a node:
-compute node -> node
-
-example: (pprint
-(node-details
-(compute-context service flightcaster-creds) node ))
-"
-  ([compute node]
-     (.getNodeMetadata  (.getComputeService compute) node ))
-)
+(defn destroy-nodes 
+  ([#^org.jclouds.compute.ComputeServiceContext compute #^String tag]
+    (.destroyNodesWithTag (.getComputeService compute) tag )))
 
 (defn destroy-node
+  ([#^org.jclouds.compute.ComputeServiceContext compute #^org.jclouds.compute.domain.ComputeMetadata node]
+    (.destroyNode (.getComputeService compute) node )))
 
-"
-http://code.google.com/p/jclouds
- 
-destroys a node in a service:
-compute node -> nil
-
-example:
-(destroy-node
-(compute-context service flightcaster-creds) node )
-"
-  ([compute node]
-     (.destroyNode (.getComputeService compute) node ))
-)
