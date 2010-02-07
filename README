@@ -45,6 +45,8 @@ Here's a quick example of how to view compute and blob resources.
  (pprint (images compute))
  (pprint (nodes compute))
  (pprint (sizes compute))
+ (run-node compute "testcluster")
+ (destroy-nodes compute "testcluster")
 
  (pprint (containers blobstore))
  (pprint (blobs blobstore "your_container_name" )) 
