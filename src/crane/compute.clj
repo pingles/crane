@@ -43,7 +43,8 @@ crane.compute
 
   ([{service :service account :account key :key}]
      (compute-context service account key))
-  ([s a k] (.createContext (new ComputeServiceContextFactory) s a k )))
+  ([s a k] (.createContext (new ComputeServiceContextFactory) s a k ))
+  ([s a k m] (.createContext (new ComputeServiceContextFactory) s a k m)))
 
 (defn locations
 
@@ -124,7 +125,7 @@ example: (pprint
 (compute-context service flightcaster-creds) tag count template))
 "
   ([compute tag count template]
-     (.runNode (.getComputeService compute) tag count template))
+     (.runNodesWithTag (.getComputeService compute) tag count template))
 )
 
 (defn node-details
