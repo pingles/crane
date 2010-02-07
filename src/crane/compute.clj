@@ -43,18 +43,21 @@ crane.compute
   (:import org.jclouds.compute.domain.Size)
   (:import org.jclouds.compute.domain.Image))
 
+(def module-lookup
+     {:log4j org.jclouds.logging.log4j.config.Log4JLoggingModule
+      :ssh org.jclouds.ssh.jsch.config.JschSshClientModule
+      :enterprise org.jclouds.enterprise.config.EnterpriseConfigurationModule})
+
 (defn modules
   "Build a list of modules suitable for passing to compute-context"
   [& modules]
-  (.build (reduce #(.add %1 %2)
+  (.build (reduce #(.add %1 (.newInstance (%2 module-lookup)))
 		  (com.google.common.collect.ImmutableSet/builder)
 		  modules)))
 
 (defn compute-context
-  ([s a k] (.createContext (new ComputeServiceContextFactory) s a k (modules
-    (new Log4JLoggingModule)
-    (new JschSshClientModule)
-    (new EnterpriseConfigurationModule))))
+  ([s a k] (.createContext (new ComputeServiceContextFactory) s a k
+                           (modules :log4j :ssh :enterprise)))
   ([s a k m] (.createContext (new ComputeServiceContextFactory) s a k m)))
 
 (defn locations [#^org.jclouds.compute.ComputeServiceContext compute]
