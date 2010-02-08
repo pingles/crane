@@ -3,7 +3,7 @@ To build:
 1. Download and install leiningen http://github.com/technomancy/leiningen
 2. $ lein deps
 3. $ lein install
-4. $ java -cp `ls lib/*|xargs echo|sed 's/ /:/g'`:classes jline.ConsoleRunner clojure.main
+4. $ java -cp `ls lib/*|xargs echo|sed 's/ /:/g'`:classes:lib jline.ConsoleRunner clojure.main
 
 core libs for compute cloud, blobstore, and ssh.
 
