@@ -8,40 +8,39 @@ Current supported services are:
 
 Here's an example of getting some compute configuration from rackspace:
 
-(ns crane.jclouds
-  (:use crane.compute)
-  (:use clojure.contrib.pprint)
-)
+  (ns crane.jclouds
+    (:use crane.compute
+          clojure.contrib.pprint))
 
- (def user  "rackspace_username")
- (def password "rackspace_password")
- (def compute-name "cloudservers")
+  (def user \"username\")
+  (def password \"password\")
+  (def compute-name \"cloudservers\")
 
- (def compute (compute-context compute-name user password))
+  (def compute (compute-context compute-name user password))
 
- (pprint (locations compute))
- (pprint (images compute))
- (pprint (nodes compute))
- (pprint (sizes compute))
+  (pprint (locations compute))
+  (pprint (images compute))
+  (pprint (nodes compute))
+  (pprint (sizes compute))
 
 "}
-crane.compute
+  crane.compute
 
   (:use clojure.contrib.duck-streams)
-  (:import java.io.File)
-  (:import org.jclouds.compute.domain.OsFamily)
-  (:import org.jclouds.domain.Location)
-  (:import org.jclouds.compute.ComputeService)
-  (:import org.jclouds.compute.ComputeServiceContext)
-  (:import org.jclouds.compute.ComputeServiceContextFactory)
-  (:import org.jclouds.logging.log4j.config.Log4JLoggingModule)
-  (:import org.jclouds.ssh.jsch.config.JschSshClientModule)
-  (:import org.jclouds.enterprise.config.EnterpriseConfigurationModule)
-  (:import org.jclouds.compute.domain.Template)
-  (:import org.jclouds.compute.domain.TemplateBuilder)
-  (:import org.jclouds.compute.domain.ComputeMetadata)
-  (:import org.jclouds.compute.domain.Size)
-  (:import org.jclouds.compute.domain.Image))
+  (:import java.io.File
+           org.jclouds.compute.domain.OsFamily
+           org.jclouds.domain.Location
+           org.jclouds.compute.ComputeService
+           org.jclouds.compute.ComputeServiceContext
+           org.jclouds.compute.ComputeServiceContextFactory
+           org.jclouds.logging.log4j.config.Log4JLoggingModule
+           org.jclouds.ssh.jsch.config.JschSshClientModule
+           org.jclouds.enterprise.config.EnterpriseConfigurationModule
+           org.jclouds.compute.domain.Template
+           org.jclouds.compute.domain.TemplateBuilder
+           org.jclouds.compute.domain.ComputeMetadata
+           org.jclouds.compute.domain.Size
+           org.jclouds.compute.domain.Image))
 
 (def module-lookup
      {:log4j org.jclouds.logging.log4j.config.Log4JLoggingModule
