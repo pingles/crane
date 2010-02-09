@@ -94,6 +94,14 @@ crane.compute
 (defn node-details [#^org.jclouds.compute.ComputeServiceContext compute node]
   (.getNodeMetadata (.getComputeService compute) node ))
 
+(defn reboot-nodes 
+  ([#^org.jclouds.compute.ComputeServiceContext compute #^String tag]
+    (.rebootNodesWithTag (.getComputeService compute) tag )))
+
+(defn reboot-node
+  ([#^org.jclouds.compute.ComputeServiceContext compute #^org.jclouds.compute.domain.ComputeMetadata node]
+    (.rebootNode (.getComputeService compute) node )))
+
 (defn destroy-nodes 
   ([#^org.jclouds.compute.ComputeServiceContext compute #^String tag]
     (.destroyNodesWithTag (.getComputeService compute) tag )))
