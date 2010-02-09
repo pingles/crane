@@ -52,7 +52,7 @@ crane.ssh2
    (while (not (.isConnected session))
    (try (.connect session)
 	(catch com.jcraft.jsch.JSchException e 
-	  (println  "Waiting for ssh to come up")
+	  (println  "Waiting for ssh to come up" e)
 	  (Thread/sleep 10000)
 	  (block-until-connected session))))
    (println  "ssh is up.")
