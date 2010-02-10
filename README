@@ -3,7 +3,7 @@ To build:
 1. Download and install leiningen http://github.com/technomancy/leiningen
 2. $ lein deps
 3. $ lein install
-4. $ java -cp `ls lib/*|xargs echo|sed 's/ /:/g'`:classes:lib jline.ConsoleRunner clojure.main
+4. $ java -cp `ls lib/*|xargs echo|sed 's/ /:/g'`:classes:src jline.ConsoleRunner clojure.main
 
 core libs for compute cloud, blobstore, and ssh.
 
@@ -46,6 +46,7 @@ Here's a quick example of how to view compute and blob resources.
  (pprint (nodes compute))
  (pprint (sizes compute))
  (run-node compute "testcluster")
+ (reboot-nodes compute "testcluster")
  (destroy-nodes compute "testcluster")
 
  (pprint (containers blobstore))
