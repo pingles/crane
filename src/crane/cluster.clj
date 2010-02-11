@@ -156,11 +156,13 @@ Need to set:
      slaves-file (str (:hadooppath config) "/conf/slaves")
      coresite-file (str (:hadooppath config) "/conf/core-site.xml")
      hdfssite-file (str (:hadooppath config) "/conf/hdfs-site.xml")
-mapredsite-file (str (:hadooppath config) "/conf/mapred-site.xml")
+     mapredsite-file (str (:hadooppath config) "/conf/mapred-site.xml")
      namenode-cmd (str "cd " (:hadooppath config) " && bin/hadoop namenode -format && bin/start-dfs.sh")
      jobtracker-cmd (str "cd " (:hadooppath config) " && bin/hadoop-daemon.sh start jobtracker")
      tasktracker-cmd (str "cd " (:hadooppath config) " && bin/hadoop-daemon.sh start tasktracker")
      ]
+
+    (put master-session (file (:push config)) "/tmp/")
     (dorun  (pmap #(scp % hdfs-site hdfssite-file)
                   (flatten [namenode-session master-session slave-sessions])))
     (dorun (pmap #(scp % slaves-str slaves-file) [master-session namenode-session]))
@@ -176,4 +178,79 @@ mapredsite-file (str (:hadooppath config) "/conf/mapred-site.xml")
 
 ;;TODO parralelize launching instances?
 ;; clean up massive let binding, remove duplicate code
+;; pull add slaves out of cluster.clj?
 
+(defn master-ips
+"returns list of namenode and jobtracker external ip addresses"
+  [ec2 config]
+  (list (:public (attributes (find-master  ec2 (:group config))))
+        (:public (attributes (find-namenode  ec2 (:group config))))))
+
+(defn nn-private
+"returns namenode private address as string"  
+  [ec2 config]
+  (:private (attributes (find-namenode ec2 (:group config)))))
+
+(defn jt-private
+"returns jobtracker private address as string"  
+  [ec2 config]
+  (str (:private (attributes (find-master ec2 (:group config)))) ":9000"))
+
+(defn master-sessions
+"bring up ssh sessions to master ips.  For slave file append"
+  [addresses config]
+  (let [cred (creds (:creds config))]
+  (map
+   #(block-until-connected (session (:private-key-path cred)
+                                    (:hadoopuser config) %))
+   addresses)))
+
+(defn slaves-cmd
+"command to redirect a list of slaves to the conf/slaves file on masters"
+  [slaves-str config]
+  (str "echo -e '" slaves-str "' > " (:hadooppath config) "/conf/slaves")) 
+
+(defn start-daemons-cmd 
+"returns string that will start dfs and tasktracker daemons"
+  [config]
+  (str "cd " 
+       (:hadooppath config)
+       " && bin/hadoop-daemon.sh start datanode"
+       " && bin/hadoop-daemon.sh start tasktracker"))
+
+;;workflow for adding nodes
+;; launch slaves in  slaves group
+;; append slaves file on jobtracker and namenode with new slaves
+;; scp config files to new slaves
+;; start services on slave nodes
+
+(defn add-nodes
+"adds num of nodes to already running cluster, in (:group config)"
+  [ec2 num config]
+  (let 
+      [conf (merge config
+                   {:instances (+ (count (running-instances ec2 (:group config)))
+                                  num)})
+     new-nodes (launch-slave-machines ec2 conf)
+     nodes-str (get-slaves-str new-nodes)
+     mapred-site (create-mapred-site (:mapredsite config) (jt-private ec2 config))
+     core-site (create-core-site (:coresite config) (nn-private ec2 config))
+     hdfs-site (slurp (:hdfssite config))
+     coresite-file (str (:hadooppath config) "/conf/core-site.xml")
+     hdfssite-file (str (:hadooppath config) "/conf/hdfs-site.xml")
+     mapredsite-file (str (:hadooppath config) "/conf/mapred-site.xml")
+     masters-sess (master-sessions (master-ips ec2 config) config)
+     nodes-sessions (map
+                     #(hadoop-machine-session % config)
+                     new-nodes)]
+  (dorun (map
+           #(scp % mapred-site mapredsite-file)
+           nodes-sessions))
+  (dorun (map
+           #(scp % core-site coresite-file)
+           nodes-sessions))
+  (dorun (map
+           #(scp % hdfs-site hdfssite-file)
+           nodes-sessions))  
+  (dorun (pmap #(sh! (shell-channel %) (slaves-cmd nodes-str config)) masters-sess))
+  (dorun (pmap #(sh! (shell-channel %) (start-daemons-cmd config)) nodes-sessions))))
