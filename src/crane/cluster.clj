@@ -137,7 +137,8 @@ be advised that find master returns nil if the master has been reserved but is n
             :mapredsite-file (str (:hadooppath config) "/conf/mapred-site.xml")
             :namenode-cmd (str "cd " (:hadooppath config) " && bin/hadoop namenode -format && bin/start-dfs.sh")
             :jobtracker-cmd (str "cd " (:hadooppath config) " && bin/hadoop-daemon.sh start jobtracker")
-            :tasktracker-cmd (str "cd " (:hadooppath config) " && bin/hadoop-daemon.sh start tasktracker")})
+            :tasktracker-cmd (str "cd " (:hadooppath config) " && bin/hadoop-daemon.sh start tasktracker")
+            :hdfs-site (slurp (:hdfssite config))})
 
 (defn launch-cluster [ec2 config]
   "Assumes you have all settings configured in your mapred-site except for jobtracker url
@@ -159,24 +160,15 @@ Need to set:
      mapred-site (create-mapred-site (:mapredsite config) (str (.getPrivateDnsName jobtracker)
                                                                ":9000"))
      core-site (create-core-site (:coresite config) (str (.getPrivateDnsName namenode)))
-     hdfs-site (slurp (:hdfssite config))
      namenode-session (hadoop-machine-session namenode config)
      master-session (hadoop-machine-session jobtracker config)
      slave-sessions (map #(hadoop-machine-session % config) slaves)]
-    ;; TODO put dest path for push file src and dest.
     
-    (prn master-session)
-    (prn namenode-session)
-    (prn slave-sessions)
-    
-    (prn "pushing files to master")
-    (push master-session [(:source (:push test-conf))
-                          (:dest (:push test-conf))])
-    (prn "scp hdfs-site")
+    (prn "pushing files to master...")
+    (push master-session (:push test-conf))
     (dorun
-     (pmap #(scp % hdfs-site (:hdfssite-file conf-map))
+     (pmap #(scp % (:hdfs-site conf-map) (:hdfssite-file conf-map))
            (flatten [namenode-session master-session slave-sessions])))
-    (prn "scp slaves-file")
     (dorun
      (pmap #(scp % slaves-str (:slaves-file conf-map))
            [master-session namenode-session]))
@@ -184,7 +176,6 @@ Need to set:
     (dorun
      (pmap #(scp % mapred-site (:mapredsite-file conf-map))
            (flatten (cons [namenode-session master-session] slave-sessions))))
-    (prn "scp core-site")
     (dorun
      (pmap #(scp % core-site (:coresite-file conf-map))
            (flatten (cons [namenode-session master-session] slave-sessions))))
@@ -255,22 +246,19 @@ Requires the same arguments "
      nodes-str (get-slaves-str new-nodes)
      mapred-site (create-mapred-site (:mapredsite config) (jt-private ec2 config))
      core-site (create-core-site (:coresite config) (nn-private ec2 config))
-     hdfs-site (slurp (:hdfssite config))
-     coresite-file (str (:hadooppath config) "/conf/core-site.xml")
-     hdfssite-file (str (:hadooppath config) "/conf/hdfs-site.xml")
-     mapredsite-file (str (:hadooppath config) "/conf/mapred-site.xml")
+     conf-map (hadoop-conf config)
      masters-sess (master-sessions (master-ips ec2 config) config)
      nodes-sessions (map
                      #(hadoop-machine-session % config)
                      new-nodes)]
   (dorun (map
-           #(scp % mapred-site mapredsite-file)
+           #(scp % mapred-site (:mapredsite-file conf-map))
            nodes-sessions))
   (dorun (map
-           #(scp % core-site coresite-file)
+           #(scp % core-site (:coresite-file conf-map))
            nodes-sessions))
   (dorun (map
-           #(scp % hdfs-site hdfssite-file)
+           #(scp % (:hdfs-site conf-map) (:hdfssite-file conf-map))
            nodes-sessions))  
   (dorun (pmap #(sh! (shell-channel %) (slaves-cmd nodes-str config)) masters-sess))
   (dorun (pmap #(sh! (shell-channel %) (start-daemons-cmd config)) nodes-sessions))))
