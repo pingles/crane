@@ -22,8 +22,8 @@ conf.clj
  :instances int
  :instances int
  :creds "/path/to/creds.clj-dir"
- :push ["/file/to/push"
-        "/another/file/to/push"]
+ :push {:source "/file/to/push"
+        :dest "/remote/file.jar"}
  :hadooppath "/path/to/hadoop"          ;;used for remote pathing
  :hadoopuser "hadoop-user"              ;;remote hadoop user
  :mapredsite "/path/to/local/mapred"    ;;used as local templates

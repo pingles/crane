@@ -130,6 +130,15 @@ be advised that find master returns nil if the master has been reserved but is n
 
 ;;TODO remove config files and launch cmds if not necessary eg: some people don't use hdfs
 
+(defn hadoop-conf [config]
+           {:slaves-file (str (:hadooppath config) "/conf/slaves")
+            :coresite-file (str (:hadooppath config) "/conf/core-site.xml")
+            :hdfssite-file (str (:hadooppath config) "/conf/hdfs-site.xml")
+            :mapredsite-file (str (:hadooppath config) "/conf/mapred-site.xml")
+            :namenode-cmd (str "cd " (:hadooppath config) " && bin/hadoop namenode -format && bin/start-dfs.sh")
+            :jobtracker-cmd (str "cd " (:hadooppath config) " && bin/hadoop-daemon.sh start jobtracker")
+            :tasktracker-cmd (str "cd " (:hadooppath config) " && bin/hadoop-daemon.sh start tasktracker")})
+
 (defn launch-cluster [ec2 config]
   "Assumes you have all settings configured in your mapred-site except for jobtracker url
  
@@ -146,35 +155,45 @@ Need to set:
      jobtracker (launch-jobtracker-machine ec2 config)
      slaves (launch-slave-machines ec2 config)
      slaves-str (get-slaves-str slaves)
+     conf-map (hadoop-conf config)
      mapred-site (create-mapred-site (:mapredsite config) (str (.getPrivateDnsName jobtracker)
                                                                ":9000"))
      core-site (create-core-site (:coresite config) (str (.getPrivateDnsName namenode)))
      hdfs-site (slurp (:hdfssite config))
      namenode-session (hadoop-machine-session namenode config)
      master-session (hadoop-machine-session jobtracker config)
-     slave-sessions (map #(hadoop-machine-session % config) slaves)
-     slaves-file (str (:hadooppath config) "/conf/slaves")
-     coresite-file (str (:hadooppath config) "/conf/core-site.xml")
-     hdfssite-file (str (:hadooppath config) "/conf/hdfs-site.xml")
-     mapredsite-file (str (:hadooppath config) "/conf/mapred-site.xml")
-     namenode-cmd (str "cd " (:hadooppath config) " && bin/hadoop namenode -format && bin/start-dfs.sh")
-     jobtracker-cmd (str "cd " (:hadooppath config) " && bin/hadoop-daemon.sh start jobtracker")
-     tasktracker-cmd (str "cd " (:hadooppath config) " && bin/hadoop-daemon.sh start tasktracker")
-     ]
-
-    (put master-session (file (:push config)) "/tmp/")
-    (dorun  (pmap #(scp % hdfs-site hdfssite-file)
-                  (flatten [namenode-session master-session slave-sessions])))
-    (dorun (pmap #(scp % slaves-str slaves-file) [master-session namenode-session]))
-    (dorun (pmap
-             #(scp % mapred-site mapredsite-file)
-             (flatten (cons [namenode-session master-session] slave-sessions))))
-    (dorun (pmap
-             #(scp % core-site coresite-file)
-             (flatten (cons [namenode-session master-session] slave-sessions))))
-    (sh! (shell-channel namenode-session) namenode-cmd)
-    (sh! (shell-channel master-session) jobtracker-cmd)
-    (dorun (pmap #(sh! (shell-channel %) tasktracker-cmd) slave-sessions))))
+     slave-sessions (map #(hadoop-machine-session % config) slaves)]
+    ;; TODO put dest path for push file src and dest.
+    
+    (prn master-session)
+    (prn namenode-session)
+    (prn slave-sessions)
+    
+    (prn "pushing files to master")
+    (push master-session [(:source (:push test-conf))
+                          (:dest (:push test-conf))])
+    (prn "scp hdfs-site")
+    (dorun
+     (pmap #(scp % hdfs-site (:hdfssite-file conf-map))
+           (flatten [namenode-session master-session slave-sessions])))
+    (prn "scp slaves-file")
+    (dorun
+     (pmap #(scp % slaves-str (:slaves-file conf-map))
+           [master-session namenode-session]))
+    (prn mapred-site)
+    (dorun
+     (pmap #(scp % mapred-site (:mapredsite-file conf-map))
+           (flatten (cons [namenode-session master-session] slave-sessions))))
+    (prn "scp core-site")
+    (dorun
+     (pmap #(scp % core-site (:coresite-file conf-map))
+           (flatten (cons [namenode-session master-session] slave-sessions))))
+    (prn "starting services... ")
+    (sh! (shell-channel namenode-session) (:namenode-cmd conf-map))
+    (sh! (shell-channel master-session) (:jobtracker-cmd conf-map))
+    (dorun
+     (pmap #(sh! (shell-channel %) (:tasktracker-cmd conf-map)) slave-sessions))
+    {:ssh master-session :repl 'foo}))
 
 ;;TODO parralelize launching instances?
 ;; clean up massive let binding, remove duplicate code
@@ -225,7 +244,8 @@ Need to set:
 ;; start services on slave nodes
 
 (defn add-nodes
-"adds num of nodes to already running cluster, in (:group config)"
+  "adds num of nodes to already running cluster, in (:group config)
+Requires the same arguments "
   [ec2 num config]
   (let 
       [conf (merge config
