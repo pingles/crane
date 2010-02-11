@@ -50,14 +50,18 @@ Here's an example of getting some compute configuration from rackspace:
 (defn modules
   "Build a list of modules suitable for passing to compute-context"
   [& modules]
-  (.build (reduce #(.add %1 (.newInstance (%2 module-lookup)))
-		  (com.google.common.collect.ImmutableSet/builder)
+  (.build #^com.google.common.collect.ImmutableSet$Builder
+	  (reduce #(.add #^com.google.common.collect.ImmutableSet$Builder %1
+			 (.newInstance #^Class (%2 module-lookup)))
+		  (#^com.google.common.collect.ImmutableSet$Builder
+		   com.google.common.collect.ImmutableSet/builder)
 		  modules)))
 
 (defn compute-context
-  ([s a k] (.createContext (new ComputeServiceContextFactory) s a k
-                           (modules :log4j :ssh :enterprise)))
-  ([s a k m] (.createContext (new ComputeServiceContextFactory) s a k m)))
+  ([s a k]
+     (compute-context s a k (modules :log4j :ssh :enterprise)))
+  ([#^String s #^String a #^String k #^com.google.common.collect.ImmutableSet m]
+     (.createContext (new ComputeServiceContextFactory) s a k m)))
 
 (defn locations [#^org.jclouds.compute.ComputeServiceContext compute]
   (.getLocations (.getComputeService compute)))
