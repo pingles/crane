@@ -13,7 +13,8 @@
 
 (defmacro with-tmp-dir [tmp-dir-path & body]
   `(let [tmp-dir# (ju/file ~tmp-dir-path)]
-     (or (.exists tmp-dir#) (.mkdir tmp-dir#))
+     (ju/delete-file-recursively tmp-dir# true)
+     (.mkdir tmp-dir#)
      (try
        ~@body
        (finally
@@ -51,32 +52,45 @@
 
 ; should actually check permissions [mrm]
 (deftest test-chmod
-  (let [touch-file-path (str tmp-dir-path "/foo")]
+  (let [touch-path (str tmp-dir-path "/foo")]
     (with-tmp-dir tmp-dir-path
-      (ds/write-lines touch-file-path ["content"])
+      (ds/write-lines touch-path ["content"])
       (with-connection [sess (local-session)]
-        (chmod sess 777 touch-file-path)))))
+        (chmod sess 777 touch-path)))))
 
 (deftest test-ls
-  (let [touch-file-path (str tmp-dir-path "/foo")]
+  (let [touch-path (str tmp-dir-path "/foo")]
     (with-tmp-dir tmp-dir-path
-      (ds/write-lines touch-file-path ["content"])
+      (ds/write-lines touch-path ["content"])
       (with-connection [sess (local-session)]
         (is (= ["." ".." "foo"]
                (map #(.getFilename %) (ls sess tmp-dir-path))))))))
 
 (deftest test-sh!-exec
   (with-tmp-dir tmp-dir-path
-    (let [touch-file (str tmp-dir-path "/foo")]
+    (let [touch (str tmp-dir-path "/foo")]
       (with-connection [sess (local-session)]
-        (is (= "" (sh! (exec-channel sess) (str "touch " touch-file))))
+        (is (= "" (sh! (exec-channel sess) (str "touch " touch))))
         (is (= (str "foo\n")
                (sh! (exec-channel sess) (str "ls " tmp-dir-path))))))))
 
 (deftest test-sh!-shell
   (with-tmp-dir tmp-dir-path
-    (let [touch-file-path (str tmp-dir-path "/foo")]
+    (let [touch-path (str tmp-dir-path "/foo")]
       (with-connection [sess (local-session)]
-        (sh! (shell-channel sess) (str "touch " touch-file-path))
+        (sh! (shell-channel sess) (str "touch " touch-path))
         (is (= (str "foo\n")
                (sh! (exec-channel sess) (str "ls " tmp-dir-path))))))))
+
+(deftest test-push-unzipped
+  (with-tmp-dir tmp-dir-path
+    (let [from-path1 (str tmp-dir-path "/from1")
+          from-path2 (str tmp-dir-path "/from2")
+          to-path1   (str tmp-dir-path "/to1")
+          to-path2   (str tmp-dir-path "/to2")]
+      (ds/write-lines from-path1 ["content1"])
+      (ds/write-lines from-path2 ["content2"])
+      (with-connection [sess (local-session)]
+        (push sess [from-path1 to-path1 from-path2 to-path2])
+        (is (= ["." ".." "from1" "from2" "to1" "to2"]
+               (map #(.getFilename %) (ls sess tmp-dir-path))))))))

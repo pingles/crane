@@ -169,21 +169,10 @@
   (with-connection [_ channel]
     (read-command-output channel)))
 
-;;TODO: replace with new gzip streaming foo?
-;; kind of a shady api there, probably want to change and provide other options
-;; like gziping each path in parallel and scping in parallel.
+;;TODO: efficient parallel transfer of many small files, e.g. via zip?
 (defn push
   "Takes a coll of from->to paths, turns them into tuples, and scps from->to.
-   The transfers are executed in parallel via pmap.
-   Call with a [seesion paths :zip] to get all the paths rolled up into a tar.gz
-   before scp'ing."
-  ([sess paths]
+   The transfers are executed in parallel via pmap, which will create agents
+   that may need to be shutdown."
+  [sess paths]
    (doall (pmap (fn [[from to]] (scp sess from to)) (partition 2 paths))))
-  ([sess paths zip]
-   (let [from-to (partition 2 paths)]
-     (sh "sh" "-c" (apply str "tar -czf /tmp/push.tar.gz " (map first from-to)))
-     (scp sess (java.io.File. "/tmp/push.tar.gz") "/root/push.tar.gz")
-     (sh! sess "tar -xzf push.tar.gz")
-     (doseq [[from to] from-to]
-       (sh! sess (str "cp " from " " to)))
-     (sh "rm" "/tmp/push.tar.gz"))))
