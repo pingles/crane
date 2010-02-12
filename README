@@ -1,17 +1,20 @@
-SAMPLE:
+How to start a hadoop ec2 cluster using crane.
 
-How to start an ec2 cluster using crane.
+Workflow:
+-def conf map using conf fn
+-def new Jec2 class, stores creds
+-launch hadoop cluster
 
-;;read in creds "creds.clj"
-crane.cluser> (def my-creds (creds "/path/to/creds-dir/"))
+Configuration maps:
+
+creds.clj
 
 {:key "AWS-KEY"
  :secretkey "AWS-SECRET-KEY"
  :private-key-path "/path/to/private-key"
  :key-name "key-name"}
 
-;;read in config "aws.clj"
-crane.cluster> (def my-conf (conf "/path/to/conf-dir"))
+conf.clj
 
 {:image "ami-"
  :instance-type :m1.large
@@ -19,16 +22,24 @@ crane.cluster> (def my-conf (conf "/path/to/conf-dir"))
  :instances int
  :instances int
  :creds "/path/to/creds.clj-dir"
- :push ["/file/to/push"
-        "/another/file/to/push"]
- :user-data "/path/to/user-data-file"
+ :push ["/source/path" "/dest/path/file"
+        "/another/source/path" "/another/dest/path/file"]
+ :hadooppath "/path/to/hadoop"          ;;used for remote pathing
+ :hadoopuser "hadoop-user"              ;;remote hadoop user
+ :mapredsite "/path/to/local/mapred"    ;;used as local templates
+ :coresite "/path/to/local/core-site"
+ :hdfssite "/path/to/local/hdfssite"}
+
+Example:
+
+;;read in config "aws.clj"
+crane.cluster> (def my-conf (conf "/path/to/conf.clj-dir"))
 
 ;;create new Jec2 class
-crane.cluster> (def ec (ec2 (creds "/path/to/creds-dir")))
+crane.cluster> (def ec (ec2 (creds "/path/to/creds.clj-dir")))
 
 ;;start cluster 
 (launch-hadoop-cluster ec my-conf)
-
 
 To build:
 
