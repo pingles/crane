@@ -165,9 +165,11 @@ be advised that find master returns nil if the master has been reserved but is n
    :hdfs-site (slurp (:hdfssite config))})
 
 (defn launch-cluster
-"Assumes you have all settings configured in your mapred-site except for jobtracker url
+"Assumes you have all settings configured in your
+ mapred-site except for jobtracker url
  
-You need to set up an image that contains hadoop installed and all necessary permissions set up
+You need to set up an image that contains hadoop
+installed and all necessary permissions set up
 Need to set:
 :hadoopuser to the user that will run hadoop
 :mapredsite to path to mapred-site template, and
@@ -188,7 +190,7 @@ Need to set:
      slave-sessions (map #(hadoop-machine-session % config) slaves)]
     
     (prn "pushing files to master...")
-    (push master-session (:push test-conf))
+    (push master-session (:push config))
     (dorun (pmap
             #(scp % (:hdfs-site conf-map) (:hdfssite-file conf-map))
             (flatten [namenode-session master-session slave-sessions])))

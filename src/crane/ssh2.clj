@@ -25,6 +25,7 @@ note for shell out that wildcards and such are not expanded by the shell-out/sh 
 crane.ssh2
   (:use clojure.contrib.duck-streams)
   (:use clojure.contrib.shell-out)
+  (:use clojure.contrib.java-utils)
   (:import [java.io 
 	    BufferedReader 
 	    InputStreamReader 
