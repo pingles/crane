@@ -34,7 +34,8 @@ Optional keys in config {}
  (:use clojure.xml)
  (:use crane.utils)
  (:import java.io.File)
- (:import java.util.ArrayList))
+ (:import java.util.ArrayList)
+ (:import java.net.Socket))
 
 (defn parse-str-xml [s]
   (parse (new org.xml.sax.InputSource
@@ -150,7 +151,25 @@ be advised that find master returns nil if the master has been reserved but is n
     )
   )
 
+(defn make-classpath [config]
+  (apply str
+         (interpose ":" (map
+                         #(second %)
+                         (partition 2 (:push config))))))
+
+(defn socket-repl
+"Socket class, connected to master(jobtracker) remote repl"
+  [#^String master]
+  (Socket. master 8080))
+
 ;;TODO remove config files and launch cmds if not necessary eg: some people don't use hdfs
+
+(defn repl-cmd
+  [config]
+  (str "java -Xmx1024m -cp "
+       (make-classpath config)
+       " srepl.startrepl"
+       (last (:repl-jar config))))
 
 (defn hadoop-conf
 "creates configuration, and remote shell-cmd map."
@@ -189,8 +208,7 @@ Need to set:
      master-session (hadoop-machine-session jobtracker config)
      slave-sessions (map #(hadoop-machine-session % config) slaves)]
     
-    (prn "pushing files to master...")
-    (push master-session (:push config))
+    (push master-session (concat (:push config)))
     (dorun (pmap
             #(scp % (:hdfs-site conf-map) (:hdfssite-file conf-map))
             (flatten [namenode-session master-session slave-sessions])))
@@ -204,13 +222,14 @@ Need to set:
     (dorun (pmap
             #(scp % core-site (:coresite-file conf-map))
             (flatten (cons [namenode-session master-session] slave-sessions))))
-    (prn "starting services... ")
     (sh! (shell-channel namenode-session) (:namenode-cmd conf-map))
     (sh! (shell-channel master-session) (:jobtracker-cmd conf-map))
     (dorun (pmap
             #(sh! (shell-channel %) (:tasktracker-cmd conf-map))
             slave-sessions))
-    {:ssh master-session :repl 'foo}))
+    (sh! (shell-channel master-session) (repl-cmd config))
+    (def remote {:ssh master-session
+                 :repl (socket-repl (.getDnsName jobtracker))})))
 
 ;;TODO parralelize launching instances?
 ;; clean up massive let binding, remove duplicate code
@@ -247,7 +266,8 @@ Need to set:
   (str "echo -e '" slaves-str "' > " (:hadooppath config) "/conf/slaves")) 
 
 (defn start-daemons-cmd 
-"returns string that will start dfs and tasktracker daemons"
+"returns string that will start dfs and tasktracker daemons
+when used in a shell channel"
   [config]
   (str "cd " 
        (:hadooppath config)
@@ -261,7 +281,7 @@ Need to set:
 ;; start services on slave nodes
 
 (defn add-nodes
-  "adds num of nodes to already running cluster, in (:group config)
+"adds num of nodes to already running cluster, in (:group config)
 Requires the same arguments "
   [ec2 num config]
   (let 
