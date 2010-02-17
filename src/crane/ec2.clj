@@ -97,7 +97,7 @@ You can not block on isRunning from an instance becasue the instance is not re-p
 (defn launch-config 
   "create a launch configuration for run-instances."
   [{:keys [image instance-type instances  
-	   key-name group user-data monitoring]}]
+	   key-name group user-data monitoring zone]}]
   (let [groups (doto (ArrayList.) (.add group))]
     (doto (LaunchConfiguration. image instances instances)
 
@@ -106,7 +106,7 @@ You can not block on isRunning from an instance becasue the instance is not re-p
       ;;setKernelId(String kernelId)
       ;;setMonitoring(boolean set)
       ;;setRamdiskId(String ramdiskId)
-      ;;   (.setAvailabilityZone zone)   
+      (.setAvailabilityZone zone)   
       (.setInstanceType instance-type)
       (.setKeyName key-name)
       (.setSecurityGroup groups)
@@ -157,7 +157,8 @@ You can not block on isRunning from an instance becasue the instance is not re-p
 if you don't pass a number of instances, it is assumed that you mean the count of runnign istnaces is 1."
   ([ec2 cluster] (already-running? ec2 cluster 1))
   ([ec2 cluster n]
-     (if (= n (count (running-instances ec2 cluster)))
+     (if (or (= n (count (running-instances ec2 cluster)))
+             (> (count (running-instances ec2 cluster)) n))
        true
        false)))
 

@@ -1,3 +1,46 @@
+How to start a hadoop ec2 cluster using crane.
+
+Workflow:
+-def conf map using conf fn
+-def new Jec2 class, stores creds
+-launch hadoop cluster
+
+Configuration maps:
+
+creds.clj
+
+{:key "AWS-KEY"
+ :secretkey "AWS-SECRET-KEY"
+ :private-key-path "/path/to/private-key"
+ :key-name "key-name"}
+
+conf.clj
+
+{:image "ami-"
+ :instance-type :m1.large
+ :group "ec2-group"
+ :instances int
+ :instances int
+ :creds "/path/to/creds.clj-dir"
+ :push ["/source/path" "/dest/path/file"
+        "/another/source/path" "/another/dest/path/file"]
+ :hadooppath "/path/to/hadoop"          ;;used for remote pathing
+ :hadoopuser "hadoop-user"              ;;remote hadoop user
+ :mapredsite "/path/to/local/mapred"    ;;used as local templates
+ :coresite "/path/to/local/core-site"
+ :hdfssite "/path/to/local/hdfssite"}
+
+Example:
+
+;;read in config "aws.clj"
+crane.cluster> (def my-conf (conf "/path/to/conf.clj-dir"))
+
+;;create new Jec2 class
+crane.cluster> (def ec (ec2 (creds "/path/to/creds.clj-dir")))
+
+;;start cluster 
+(launch-hadoop-cluster ec my-conf)
+
 To build:
 
 1. Download and install leiningen http://github.com/technomancy/leiningen
