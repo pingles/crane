@@ -140,3 +140,36 @@ Here's an example of getting some compute configuration from rackspace:
     #^org.jclouds.compute.domain.ComputeMetadata node]
     (.destroyNode (.getComputeService compute) node )))
 
+(defmacro state-predicate [node state]
+  `(= (.getState ~node) (. org.jclouds.compute.domain.NodeState ~state)))
+
+(defn pending?
+  "Predicate for the node being in transition"
+  [node]
+  (state-predicate node PENDING))
+
+(defn running?
+  "Predicate for the node being available for requests."
+  [node]
+  (state-predicate node RUNNING))
+
+(defn terminated?
+  "Predicate for the node being halted."
+  [node]
+  (state-predicate node TERMINATED))
+
+(defn suspended?
+  "Predicate for the node being suspended."
+  [node]
+  (state-predicate node SUSPENDED))
+
+(defn error-state?
+  "Predicate for the node being in an error state."
+  [node]
+  (state-predicate node ERROR))
+
+(defn unknown-state?
+  "Predicate for the node being in an unknown state."
+  [node]
+  (state-predicate node UNKNOWN))
+
