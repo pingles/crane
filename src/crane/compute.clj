@@ -28,19 +28,16 @@ Here's an example of getting some compute configuration from rackspace:
 
   (:use clojure.contrib.duck-streams)
   (:import java.io.File
-           org.jclouds.compute.domain.OsFamily
            org.jclouds.domain.Location
-           org.jclouds.compute.ComputeService
-           org.jclouds.compute.ComputeServiceContext
-           org.jclouds.compute.ComputeServiceContextFactory
-           org.jclouds.logging.log4j.config.Log4JLoggingModule
-           org.jclouds.ssh.jsch.config.JschSshClientModule
-           org.jclouds.enterprise.config.EnterpriseConfigurationModule
-           org.jclouds.compute.domain.Template
-           org.jclouds.compute.domain.TemplateBuilder
-           org.jclouds.compute.domain.ComputeMetadata
-           org.jclouds.compute.domain.Size
-           org.jclouds.compute.domain.Image))
+           (org.jclouds.compute ComputeService
+                                ComputeServiceContext
+                                ComputeServiceContextFactory)
+           (org.jclouds.compute.domain Template
+                                       TemplateBuilder
+                                       ComputeMetadata
+                                       Size
+                                       OsFamily
+                                       Image)))
 
 (def module-lookup
      {:log4j org.jclouds.logging.log4j.config.Log4JLoggingModule
@@ -51,68 +48,92 @@ Here's an example of getting some compute configuration from rackspace:
   "Build a list of modules suitable for passing to compute-context"
   [& modules]
   (.build #^com.google.common.collect.ImmutableSet$Builder
-	  (reduce #(.add #^com.google.common.collect.ImmutableSet$Builder %1
-			 (.newInstance #^Class (%2 module-lookup)))
-		  (#^com.google.common.collect.ImmutableSet$Builder
-		   com.google.common.collect.ImmutableSet/builder)
-		  modules)))
+          (reduce #(.add #^com.google.common.collect.ImmutableSet$Builder %1
+                         (.newInstance #^Class (%2 module-lookup)))
+                  (#^com.google.common.collect.ImmutableSet$Builder
+                   com.google.common.collect.ImmutableSet/builder)
+                  modules)))
+
 
 (defn compute-context
+  "Create a logged in context."
   ([s a k]
      (compute-context s a k (modules :log4j :ssh :enterprise)))
   ([#^String s #^String a #^String k #^com.google.common.collect.ImmutableSet m]
      (.createContext (new ComputeServiceContextFactory) s a k m)))
 
-(defn locations [#^org.jclouds.compute.ComputeServiceContext compute]
+(defn locations
+  "Retrieve the available compute locations for the compute context."
+  [#^org.jclouds.compute.ComputeServiceContext compute]
   (.getLocations (.getComputeService compute)))
 
 (defn nodes
+  "Retrieve the existing nodes for the compute context."
   ([#^org.jclouds.compute.ComputeServiceContext compute]
     (.getNodes (.getComputeService compute) ))
   ([#^org.jclouds.compute.ComputeServiceContext compute #^String tag]
-    (.getNodesWithTag (.getComputeService compute) tag )))
+    (.getNodesWithTag (.getComputeService compute) tag)))
 
-(defn images [#^org.jclouds.compute.ComputeServiceContext compute]
+(defn images
+  "Retrieve the available images for the compute context."
+  [#^org.jclouds.compute.ComputeServiceContext compute]
   (.getImages (.getComputeService compute)))
 
-(defn sizes [#^org.jclouds.compute.ComputeServiceContext compute]
+(defn sizes
+  "Retrieve the available node sizes for the compute context."
+  [#^org.jclouds.compute.ComputeServiceContext compute]
   (.getSizes (.getComputeService compute)))
 
 (defn default-template [#^org.jclouds.compute.ComputeServiceContext compute]
   (.. compute (getComputeService) (templateBuilder)
     (osFamily OsFamily/UBUNTU)
     smallest
-    (options (org.jclouds.compute.options.TemplateOptions$Builder/authorizePublicKey (slurp (str (. System getProperty "user.home") "/.ssh/id_rsa.pub"))))
+    (options
+     (org.jclouds.compute.options.TemplateOptions$Builder/authorizePublicKey
+      (slurp (str (. System getProperty "user.home") "/.ssh/id_rsa.pub"))))
     build))
 
 (defn run-nodes
+  "Create the specified number of nodes using the default or specified
+   template."
   ([#^org.jclouds.compute.ComputeServiceContext compute tag count]
-    (.runNodesWithTag (.getComputeService compute) tag count (default-template compute)))
+    (.runNodesWithTag
+     (.getComputeService compute) tag count (default-template compute)))
   ([#^org.jclouds.compute.ComputeServiceContext compute tag count template]
-    (.runNodesWithTag (.getComputeService compute) tag count template)))
+    (.runNodesWithTag
+     (.getComputeService compute) tag count template)))
 
 (defn run-node
+  "Create the specified number of nodes using the default context."
   ([#^org.jclouds.compute.ComputeServiceContext compute tag]
     (run-nodes compute tag 1))
   ([#^org.jclouds.compute.ComputeServiceContext compute tag template]
     (run-nodes compute tag 1 template)))
 
-(defn node-details [#^org.jclouds.compute.ComputeServiceContext compute node]
+(defn node-details
+  "Retrieve the node metadata"
+  [#^org.jclouds.compute.ComputeServiceContext compute node]
   (.getNodeMetadata (.getComputeService compute) node ))
 
 (defn reboot-nodes
+  "Reboot all the nodes with the given tag."
   ([#^org.jclouds.compute.ComputeServiceContext compute #^String tag]
     (.rebootNodesWithTag (.getComputeService compute) tag )))
 
 (defn reboot-node
-  ([#^org.jclouds.compute.ComputeServiceContext compute #^org.jclouds.compute.domain.ComputeMetadata node]
+  "Reboot a given node."
+  ([#^org.jclouds.compute.ComputeServiceContext compute
+    #^org.jclouds.compute.domain.ComputeMetadata node]
     (.rebootNode (.getComputeService compute) node )))
 
 (defn destroy-nodes
+  "Destroy all the nodes with the given tag."
   ([#^org.jclouds.compute.ComputeServiceContext compute #^String tag]
     (.destroyNodesWithTag (.getComputeService compute) tag )))
 
 (defn destroy-node
-  ([#^org.jclouds.compute.ComputeServiceContext compute #^org.jclouds.compute.domain.ComputeMetadata node]
+  "Destroy a given node."
+  ([#^org.jclouds.compute.ComputeServiceContext compute
+    #^org.jclouds.compute.domain.ComputeMetadata node]
     (.destroyNode (.getComputeService compute) node )))
 
