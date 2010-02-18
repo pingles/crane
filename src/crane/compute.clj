@@ -67,12 +67,15 @@ Here's an example of getting some compute configuration from rackspace:
   [#^org.jclouds.compute.ComputeServiceContext compute]
   (.getLocations (.getComputeService compute)))
 
+(defn node-list [node-set]
+  (map #(.getValue %) node-set))
+
 (defn nodes
   "Retrieve the existing nodes for the compute context."
   ([#^org.jclouds.compute.ComputeServiceContext compute]
-    (.getNodes (.getComputeService compute) ))
+     (node-list (.getNodes (.getComputeService compute))))
   ([#^org.jclouds.compute.ComputeServiceContext compute #^String tag]
-    (.getNodesWithTag (.getComputeService compute) tag)))
+     (node-list (.getNodesWithTag (.getComputeService compute) tag))))
 
 (defn images
   "Retrieve the available images for the compute context."
