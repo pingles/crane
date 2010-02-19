@@ -167,3 +167,22 @@ Here's an example of getting some compute configuration from rackspace:
   [#^NodeMetadata node]
   (state-predicate node UNKNOWN))
 
+(defn public-ips
+  "Returns the node's public ips"
+  [#^NodeMetadata node]
+  (map #(.getHostAddress %) (.getPublicAddresses node)))
+
+(defn private-ips
+  "Returns the node's private ips"
+  [#^NodeMetadata node]
+  (map #(.getHostAddress %) (.getPrivateAddresses node)))
+
+(defn tag
+  "Returns a the node's tag"
+  [#^NodeMetadata node]
+  (.getTag node))
+
+(defn hostname
+  "Returns a the compute node's name"
+  [#^ComputeMetadata node]
+  (.getName node))
