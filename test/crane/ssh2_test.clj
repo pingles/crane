@@ -93,4 +93,4 @@
       (with-connection [sess (local-session)]
         (push sess [from-path1 to-path1 from-path2 to-path2])
         (is (= ["." ".." "from1" "from2" "to1" "to2"]
-               (map #(.getFilename %) (ls sess tmp-dir-path))))))))
+               (sort (map #(.getFilename %) (ls sess tmp-dir-path)))))))))

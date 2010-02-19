@@ -23,7 +23,7 @@
   evaluate args before runing the programs, use sh as follows:
   http://www.coderanch.com/t/423573/Java-General/java/Passing-wilcard-Runtime-exec-command#1870031"}
   crane.ssh2
-  (:use (clojure.contrib duck-streams shell-out))
+  (:use (clojure.contrib duck-streams shell-out java-utils))
   (:import (java.io BufferedReader InputStreamReader PipedOutputStream
                     PipedInputStream ByteArrayInputStream File)
            (com.jcraft.jsch JSch Session
@@ -175,4 +175,4 @@
    The transfers are executed in parallel via pmap, which will create agents
    that may need to be shutdown."
   [sess paths]
-   (doall (pmap (fn [[from to]] (scp sess from to)) (partition 2 paths))))
+   (doall (pmap (fn [[from to]] (scp sess (file from) to)) (partition 2 paths))))

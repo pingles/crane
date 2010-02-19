@@ -12,6 +12,8 @@
 :instances     ;;number of slaves, does not include jobtracker, namenode
 :creds         ;;path to dir with file containing  aws creds;
                  creds.clj should be a map, with vals being aws creds
+:jar-files     ;;jar files to push to master, must have socket repl jar
+                 and project jar w/ dependencies
 :hadooppath    ;;path to hadoop dir on remote machine
 :hadoopuser    ;;hadoop user on remote machine
 :mapredsite    ;;path to mapred-site.xml template
@@ -20,6 +22,7 @@
 
 Optional keys in config {}
 
+:zone          ;;ec2 cluster location
 :push          ;;vector of strings, [from to
                                      from to]"}
  crane.cluster
@@ -33,6 +36,7 @@ Optional keys in config {}
  (:use crane.config)
  (:use clojure.xml)
  (:use crane.utils)
+ (:use crane.remote-repl)
  (:import java.io.File)
  (:import java.util.ArrayList)
  (:import java.net.Socket))
@@ -136,8 +140,7 @@ be advised that find master returns nil if the master has been reserved but is n
 (defn get-slaves-str [slaves]
   (let
     [slave-ips (map #(:private (attributes %)) slaves)]
-    (apply str (interleave slave-ips (repeat "\n")))
-    ))
+    (apply str (interleave slave-ips (repeat "\n")))))
 
 (defn hadoop-machine-session
 "returns connected session to instance"
@@ -146,16 +149,15 @@ be advised that find master returns nil if the master has been reserved but is n
     [creds (creds (:creds config))]
     (block-until-connected
   (session
-  (:private-key-path creds) (:hadoopuser config)
-  (:public (attributes instance))))
-    )
-  )
+   (:private-key-path creds)
+   (:hadoopuser config)
+   (:public (attributes instance))))))
 
 (defn make-classpath [config]
-  (apply str
-         (interpose ":" (map
-                         #(second %)
-                         (partition 2 (:push config))))))
+  (apply str (:hadooppath config) "/conf:"
+             (interpose ":" (map
+                             #(second %)
+                             (partition 2 (:jar-files config))))))
 
 (defn socket-repl
 "Socket class, connected to master(jobtracker) remote repl"
@@ -165,11 +167,11 @@ be advised that find master returns nil if the master has been reserved but is n
 ;;TODO remove config files and launch cmds if not necessary eg: some people don't use hdfs
 
 (defn repl-cmd
-  [config]
-  (str "java -Xmx1024m -cp "
-       (make-classpath config)
-       " srepl.startrepl"
-       (last (:repl-jar config))))
+  [config sess]
+  (future [] (sh! (exec-channel sess)
+                  (str "java -Xmx1024m -cp "
+                  (make-classpath config)
+                  " remote.repl"))))
 
 (defn hadoop-conf
 "creates configuration, and remote shell-cmd map."
@@ -208,7 +210,7 @@ Need to set:
      master-session (hadoop-machine-session jobtracker config)
      slave-sessions (map #(hadoop-machine-session % config) slaves)]
     
-    (push master-session (concat (:push config)))
+    (push master-session (concat (:jar-files config) (:push config)))
     (dorun (pmap
             #(scp % (:hdfs-site conf-map) (:hdfssite-file conf-map))
             (flatten [namenode-session master-session slave-sessions])))
@@ -227,9 +229,8 @@ Need to set:
     (dorun (pmap
             #(sh! (shell-channel %) (:tasktracker-cmd conf-map))
             slave-sessions))
-    (sh! (shell-channel master-session) (repl-cmd config))
-    (def remote {:ssh master-session
-                 :repl (socket-repl (.getDnsName jobtracker))})))
+    (repl-cmd config master-session)))
+
 
 ;;TODO parralelize launching instances?
 ;; clean up massive let binding, remove duplicate code
@@ -242,12 +243,12 @@ Need to set:
         (:public (attributes (find-namenode  ec2 (:group config))))))
 
 (defn nn-private
-"returns namenode private address as string"  
+"returns namenode private address as string"
   [ec2 config]
   (:private (attributes (find-namenode ec2 (:group config)))))
 
 (defn jt-private
-"returns jobtracker private address as string"  
+"returns jobtracker private address as string"
   [ec2 config]
   (str (:private (attributes (find-master ec2 (:group config)))) ":9000"))
 
@@ -263,13 +264,13 @@ Need to set:
 (defn slaves-cmd
 "command to redirect a list of slaves to the conf/slaves file on masters"
   [slaves-str config]
-  (str "echo -e '" slaves-str "' > " (:hadooppath config) "/conf/slaves")) 
+  (str "echo -e '" slaves-str "' > " (:hadooppath config) "/conf/slaves"))
 
-(defn start-daemons-cmd 
+(defn start-daemons-cmd
 "returns string that will start dfs and tasktracker daemons
 when used in a shell channel"
   [config]
-  (str "cd " 
+  (str "cd "
        (:hadooppath config)
        " && bin/hadoop-daemon.sh start datanode"
        " && bin/hadoop-daemon.sh start tasktracker"))
@@ -284,7 +285,7 @@ when used in a shell channel"
 "adds num of nodes to already running cluster, in (:group config)
 Requires the same arguments "
   [ec2 num config]
-  (let 
+  (let
     [conf (merge config
                  {:instances (+ (count (running-instances ec2 (:group config)))
                                 num)})
@@ -305,7 +306,7 @@ Requires the same arguments "
            nodes-sessions))
   (dorun (map
            #(scp % (:hdfs-site conf-map) (:hdfssite-file conf-map))
-           nodes-sessions))  
+           nodes-sessions))
   (dorun (pmap
            #(sh! (shell-channel %) (slaves-cmd nodes-str config))
            masters-sess))
