@@ -24,14 +24,18 @@ Here's an example of getting some compute configuration from rackspace:
 
 "}
   crane.compute
-  (:use clojure.contrib.duck-streams)
+  (:use clojure.contrib.duck-streams
+        [clojure.contrib.str-utils2 :only [capitalize lower-case map-str]]
+        [clojure.contrib.java-utils :only [wall-hack-field]])
   (:import java.io.File
            org.jclouds.domain.Location
+           org.jclouds.compute.options.TemplateOptions
            (org.jclouds.compute ComputeService
                                 ComputeServiceContext
                                 ComputeServiceContextFactory)
            (org.jclouds.compute.domain Template TemplateBuilder ComputeMetadata
-                                       NodeMetadata Size OsFamily Image)
+                                       NodeMetadata Size OsFamily Image
+                                       Architecture)
            (com.google.common.collect ImmutableSet)))
 
 (def module-lookup
@@ -82,12 +86,12 @@ Here's an example of getting some compute configuration from rackspace:
 
 (defn default-template [#^ComputeServiceContext compute]
   (.. compute (getComputeService) (templateBuilder)
-    (osFamily OsFamily/UBUNTU)
-    smallest
-    (options
-     (org.jclouds.compute.options.TemplateOptions$Builder/authorizePublicKey
-      (slurp (str (. System getProperty "user.home") "/.ssh/id_rsa.pub"))))
-    build))
+      (osFamily OsFamily/UBUNTU)
+      smallest
+      (options
+       (org.jclouds.compute.options.TemplateOptions$Builder/authorizePublicKey
+        (slurp (str (. System getProperty "user.home") "/.ssh/id_rsa.pub"))))
+      build))
 
 (defn run-nodes
   "Create the specified number of nodes using the default or specified
@@ -183,6 +187,137 @@ Here's an example of getting some compute configuration from rackspace:
   (.getTag node))
 
 (defn hostname
-  "Returns a the compute node's name"
+  "Returns the compute node's name"
   [#^ComputeMetadata node]
   (.getName node))
+
+(defn- dashed [a]
+  (apply str (interpose "-" (map lower-case (re-seq #"[A-Z][^A-Z]*" a)))))
+
+(defn- camelize [a]
+  (apply str (map-str capitalize (.split a "-"))))
+
+(defn camelize-mixed [a]
+  (let [c (.split a "-")]
+    (apply str (lower-case (first c)) (map capitalize (rest c)))))
+
+(defmacro #^{:private true} define-accessor
+  [class property obj-name]
+  (list 'defn (symbol (str obj-name "-" (name property)))
+        (vector (symbol (str "#^" (.getName class))) (symbol obj-name))
+        (list (symbol (str ".get" (camelize (name property)))) (symbol obj-name))))
+
+(defmacro #^{:private true} define-accessors [class & properties]
+  (let [obj-name (if (string? (first properties))
+                   (first properties)
+                   (dashed (.getName class)))
+        properties (if (string? (first properties))
+                     (rest properties)
+                     properties)]
+    `(do
+       ~@(for [property properties]
+           `(define-accessor ~class ~property ~obj-name)))))
+
+(define-accessors Template image size location options)
+(define-accessors Image version os-family os-description architecture)
+(define-accessors Size cores ram disk)
+(define-accessors NodeMetadata "node" credentials extra state tag)
+
+(defmacro option-fn-0arg [key]
+  `(fn [builder#]
+     (~(symbol (str "." (camelize-mixed (name key)))) builder#)))
+
+(defmacro option-fn-1arg [key]
+  `(fn [builder# value#]
+     (~(symbol (str "." (camelize-mixed (name key)))) builder# value#)))
+
+(defn builder-options [builder]
+  (or (wall-hack-field org.jclouds.compute.internal.TemplateBuilderImpl :options builder)
+      (TemplateOptions.)))
+
+(defmacro option-option-fn-0arg [key]
+  `(fn [builder#]
+     (let [options# (builder-options builder#)]
+       (~(symbol (str "." (camelize-mixed (name key)))) options#)
+       (.options builder# options#))))
+
+(defn- seq-to-array [args]
+  (if (or (seq? args) (vector? args))
+    (int-array args)
+    args))
+
+(defmacro option-option-fn-1arg [key]
+  `(fn [builder# value#]
+     (let [options# (builder-options builder#)]
+       (~(symbol (str "." (camelize-mixed (name key)))) options# (seq-to-array value#))
+       (.options builder# options#))))
+
+(defmacro make-option-map [f keywords]
+  `[ ~@(reduce (fn [v# k#] (conj (conj v# k#) `(~f ~k#))) [] keywords)])
+
+(def option-1arg-map
+     (apply array-map
+            (concat
+             (make-option-map option-fn-1arg
+                              [:os-family :location-id :architecture :image-id :size-id
+                               :os-description-matches :image-version-matches
+                               :image-description-matches :min-cores :min-ram])
+             (make-option-map option-option-fn-1arg
+                              [:run-script :install-private-key :authorize-public-key :inbound-ports]))))
+(def option-0arg-map
+     (apply hash-map
+            (concat
+             (make-option-map option-fn-0arg
+                              [:smallest :fastest :biggest])
+             (make-option-map option-option-fn-0arg
+                              [:destroy-on-error]))))
+
+(def enum-map {:os-family (. OsFamily values)
+               :architecture (. Architecture values)})
+
+(defn add-option-with-value-if [builder kword]
+  (loop [enums (sequence enum-map)]
+    (if (not (empty? enums))
+      (let [enum (first enums)
+            value (filter #(= (name kword) (str %)) (second enum))]
+        (if (not (empty? value))
+          (((first enum) option-1arg-map) builder (first value))
+          (recur (rest enums)))))))
+
+(defn add-option-if [builder kword]
+  (let [f (option-0arg-map kword)]
+    (if f (f builder))))
+
+(defn add-keyword-option [builder option]
+  (if (not (or (add-option-with-value-if builder option)
+               (add-option-if builder option)))
+    (println "Unknown option " option)))
+
+(defn add-value-option [builder option value]
+  (let [f (option-1arg-map option)]
+    (if f
+      (f builder value)
+      (println "Unknown option" option))))
+
+(defn build-template [#^ComputeServiceContext compute option & options]
+  (let [builder (.. compute (getComputeService) (templateBuilder))]
+    (loop [option option
+           remaining options]
+      (if (empty? remaining)
+        (add-keyword-option builder option)
+        (let [next-is-keyword (keyword? (first remaining))
+              arg (if (not next-is-keyword)
+                    (first remaining))
+              next (if next-is-keyword
+                     (first remaining)
+                     (fnext remaining))
+              remaining (if (keyword? (first remaining))
+                          (rest remaining)
+                          (drop 2 remaining))]
+          (if arg
+            (add-value-option builder option arg)
+            (add-keyword-option builder option))
+          (if next
+            (recur next remaining)))))
+    (.build builder)))
+
