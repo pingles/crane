@@ -204,7 +204,7 @@ Here's an example of getting some compute configuration from rackspace:
 (defmacro #^{:private true} define-accessor
   [class property obj-name]
   (list 'defn (symbol (str obj-name "-" (name property)))
-        (vector (symbol (str "#^" (.getName class))) (symbol obj-name))
+        (vector  (with-meta (symbol obj-name) {:tag (.getName class)}))
         (list (symbol (str ".get" (camelize (name property)))) (symbol obj-name))))
 
 (defmacro #^{:private true} define-accessors [class & properties]
