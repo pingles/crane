@@ -174,5 +174,6 @@
   "Takes a coll of from->to paths, turns them into tuples, and scps from->to.
    The transfers are executed in parallel via pmap, which will create agents
    that may need to be shutdown."
-  [sess paths]
-   (doall (pmap (fn [[from to]] (scp sess (file from) to)) (partition 2 paths))))
+  ([session from to] (push [[session from to]]))
+  ([session-from-to]
+      (doall (pmap (fn [[session from to]] (scp session from to)) session-from-to))))
