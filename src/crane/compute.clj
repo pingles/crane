@@ -207,7 +207,10 @@ Here's an example of getting some compute configuration from rackspace:
         (vector  (with-meta (symbol obj-name) {:tag (.getName class)}))
         (list (symbol (str ".get" (camelize (name property)))) (symbol obj-name))))
 
-(defmacro #^{:private true} define-accessors [class & properties]
+(defmacro #^{:private true} define-accessors
+  "Defines read accessors, modelled on class-name-property-name.  If the second
+  argument is a string, it is used instead of the class-name prefix."
+  [class & properties]
   (let [obj-name (if (string? (first properties))
                    (first properties)
                    (dashed (.getName class)))
@@ -272,8 +275,13 @@ Here's an example of getting some compute configuration from rackspace:
              (make-option-map option-option-fn-0arg
                               [:destroy-on-error]))))
 
-(def enum-map {:os-family (. OsFamily values)
-               :architecture (. Architecture values)})
+(defn os-families []
+  (. OsFamily values))
+(defn architectures []
+  (. Architecture values))
+
+(def enum-map {:os-family (os-families)
+               :architecture (architectures)})
 
 (defn add-option-with-value-if [builder kword]
   (loop [enums (sequence enum-map)]
