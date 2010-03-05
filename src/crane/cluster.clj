@@ -14,6 +14,7 @@
                  creds.clj should be a map, with vals being aws creds
 :jar-files     ;;jar files to push to master, must have socket repl jar
                  and project jar w/ dependencies
+                 [[from to] [from to]]
 :hadooppath    ;;path to hadoop dir on remote machine
 :hadoopuser    ;;hadoop user on remote machine
 :mapredsite    ;;path to mapred-site.xml template
@@ -23,8 +24,8 @@
 Optional keys in config {}
 
 :zone          ;;ec2 cluster location
-:push          ;;vector of strings, [from to
-                                     from to]"}
+:push          ;;vector of strings, [[from to] [from to]]"}
+ 
  crane.cluster
  (:require [clojure.zip :as zip])
  (:use clojure.contrib.seq-utils)
@@ -156,8 +157,8 @@ be advised that find master returns nil if the master has been reserved but is n
 (defn make-classpath [config]
   (apply str (:hadooppath config) "/conf:"
              (interpose ":" (map
-                             #(second %)
-                             (partition 2 (:jar-files config))))))
+                             (fn [[x y]] y)
+                             (:jar-files config)))))
 
 (defn socket-repl
 "Socket class, connected to master(jobtracker) remote repl"
@@ -184,6 +185,115 @@ be advised that find master returns nil if the master has been reserved but is n
    :jobtracker-cmd (str "cd " (:hadooppath config) " && bin/hadoop-daemon.sh start jobtracker")
    :tasktracker-cmd (str "cd " (:hadooppath config) " && bin/hadoop-daemon.sh start tasktracker")
    :hdfs-site (slurp (:hdfssite config))})
+
+(defn master-session
+  [ec2 config]
+  (hadoop-machine-session
+   (find-master ec2 (:group config))
+   config))
+
+(defn name-session [ec2 config]
+ (hadoop-machine-session
+  (find-namenode ec2 (:group config))
+  config))
+
+(defn slave-sessions [ec2 config]
+  (map #(hadoop-machine-session % config)
+       (find-instances
+         running?
+         (find-reservations ec2 (:group config)))))
+
+(defn all-sessions [ec2 config]
+  (conj (slave-sessions ec2 config)
+        (master-session ec2 config)
+        (name-session ec2 config)))
+
+(defn push-mapred [ec2 config]
+  (let [mapred-file (create-mapred-site (:mapredsite config)
+                                        (str (.getPrivateDnsName
+                                              (find-master ec2
+                                               (:group config)))
+                                         ":9000"))]
+    (map
+     #(push % mapred-file (:mapredsite-file (hadoop-conf config)))
+     (all-sessions ec2 config))))
+
+(defn push-coresite [ec2 config]
+  (let [coresite-file (create-core-site (:coresite config)
+                                        (str (.getPrivateDnsName
+                                              (find-namenode ec2
+                                               (:group config)))))]
+    (map
+     #(push % coresite-file (:coresite-file (hadoop-conf config)))
+     (all-sessions ec2 config))))
+
+(defn push-hdfs [ec2 config]
+  (let [hdfs-file (:hdfs-site (hadoop-conf config))]
+    (map
+     #(push % hdfs-file (:hdfssite-file (hadoop-conf config)))
+     (all-sessions ec2 config))))
+
+(defn push-slaves [ec2 config]
+  (let [slaves-file (get-slaves-str
+                     (running-instances ec2 (:group config)))
+        sessions (list (master-session ec2 config)
+                       (name-session ec2 config))]
+    (map
+     #(push % slaves-file (:slaves-file (hadoop-conf config)))
+     sessions)))
+
+(defn push-files [ec2 config]
+  (let [sess (master-session ec2 config)
+        files (map
+                (fn [[x y]] [(file x) y])
+                (concat (:jar-files config) 
+                        (:push config)))]
+    (map
+      (fn [[x y]] (push sess x y))
+      files)))
+
+(defn push-all [ec2 config]
+  (doall (pmap
+    #(apply % [ec2 config])
+    [push-mapred 
+     push-coresite 
+     push-hdfs 
+     push-slaves 
+     push-files ]))
+  (Thread/sleep 1000))
+
+(defn start-services [ec2 config]
+  (let [cmds (hadoop-conf config)]
+    (sh! (shell-channel
+          (name-session ec2 config))
+         (:namenode-cmd cmds))
+    (sh! (shell-channel
+          (master-session ec2 config))
+          (:jobtracker-cmd cmds))
+    (dorun (pmap
+            #(sh! (shell-channel %) (:tasktracker-cmd cmds))
+            (slave-sessions ec2 config)))
+    (repl-cmd config (master-session ec2 config))))
+
+(defn launch-machines [ec2 config]
+  (doall (pmap
+    #(% ec2 config)
+    [launch-jobtracker-machine
+     launch-namenode-machine
+     launch-slave-machines]))
+  (Thread/sleep 1000))
+
+;; (defn launch-workflow [ec2 config]
+;;   (doall (map #(apply % [ec2 config])
+;;   [launch-machines
+;;   push-all 
+;;   start-services])))
+
+(defn launch-workflow [ec2 config]
+  (doall (map #(% ec2 config)
+  [launch-machines
+  push-all
+  start-services])))
 
 (defn launch-cluster
 "Assumes you have all settings configured in your
