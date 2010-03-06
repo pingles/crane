@@ -14,7 +14,8 @@
                  [org.jclouds/jclouds-hostingdotcom "1.0-SNAPSHOT"]
                  [org.jclouds/jclouds-rimuhosting "1.0-SNAPSHOT"]
                  [com.jcraft/jsch "0.1.42"]
-                 [jline "0.9.94"]]
+                 [jline "0.9.94"]
+                 [remote-repl "0.0.1-SNAPSHOT"]]
   :dev-dependencies [[org.clojure/swank-clojure "1.0"]]
   :repositories [["jclouds" "http://jclouds.googlecode.com/svn/repo"]
                  ["jclouds-snapshot" "http://jclouds.rimuhosting.com/maven2/snapshots"]])

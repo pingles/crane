@@ -253,14 +253,13 @@ be advised that find master returns nil if the master has been reserved but is n
       files)))
 
 (defn push-all [ec2 config]
-  (doall (pmap
+  (map
     #(apply % [ec2 config])
     [push-mapred 
      push-coresite 
      push-hdfs 
      push-slaves 
      push-files ]))
-  (Thread/sleep 1000))
 
 (defn start-services [ec2 config]
   (let [cmds (hadoop-conf config)]
