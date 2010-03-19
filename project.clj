@@ -7,4 +7,5 @@
                  [com.jcraft/jsch "0.1.42"]
                  [jline "0.9.94"]
                  [remote-repl "0.0.1-SNAPSHOT"]]
-  :dev-dependencies [[org.clojure/swank-clojure "1.0"]])
+  :dev-dependencies [[org.clojure/swank-clojure "1.0"]
+		     [lein-clojars "0.5.0"]])
