@@ -170,9 +170,9 @@ be advised that find master returns nil if the master has been reserved but is n
 (defn repl-cmd
   [config sess]
   (future [] (sh! (exec-channel sess)
-                  (str "java -Xmx1024m -cp "
+                  (str "java -Xmx4096m -cp "
                   (make-classpath config)
-                  " remote.repl"))))
+                  " swank.swank"))))
 
 (defn hadoop-conf
 "creates configuration, and remote shell-cmd map."
@@ -282,64 +282,11 @@ be advised that find master returns nil if the master has been reserved but is n
      launch-slave-machines]))
   (Thread/sleep 1000))
 
-;; (defn launch-workflow [ec2 config]
-;;   (doall (map #(apply % [ec2 config])
-;;   [launch-machines
-;;   push-all 
-;;   start-services])))
-
-(defn launch-workflow [ec2 config]
+(defn launch-cluster [ec2 config]
   (doall (map #(% ec2 config)
   [launch-machines
   push-all
   start-services])))
-
-(defn launch-cluster
-"Assumes you have all settings configured in your
- mapred-site except for jobtracker url
- 
-You need to set up an image that contains hadoop
-installed and all necessary permissions set up
-Need to set:
-:hadoopuser to the user that will run hadoop
-:mapredsite to path to mapred-site template, and
-:hadooppath to path of hadoop on your image"
-  [ec2 config]
-  (let
-    [cluster-name (:group config)
-     namenode (launch-namenode-machine ec2 config)     
-     jobtracker (launch-jobtracker-machine ec2 config)
-     slaves (launch-slave-machines ec2 config)
-     slaves-str (get-slaves-str slaves)
-     conf-map (hadoop-conf config)
-     mapred-site (create-mapred-site (:mapredsite config) (str (.getPrivateDnsName jobtracker)
-                                                               ":9000"))
-     core-site (create-core-site (:coresite config) (str (.getPrivateDnsName namenode)))
-     namenode-session (hadoop-machine-session namenode config)
-     master-session (hadoop-machine-session jobtracker config)
-     slave-sessions (map #(hadoop-machine-session % config) slaves)]
-    
-    (push master-session (concat (:jar-files config) (:push config)))
-    (dorun (pmap
-            #(scp % (:hdfs-site conf-map) (:hdfssite-file conf-map))
-            (flatten [namenode-session master-session slave-sessions])))
-    (dorun (pmap
-            #(scp % slaves-str (:slaves-file conf-map))
-            [master-session namenode-session]))
-    (prn mapred-site)
-    (dorun (pmap
-            #(scp % mapred-site (:mapredsite-file conf-map))
-            (flatten (cons [namenode-session master-session] slave-sessions))))
-    (dorun (pmap
-            #(scp % core-site (:coresite-file conf-map))
-            (flatten (cons [namenode-session master-session] slave-sessions))))
-    (sh! (shell-channel namenode-session) (:namenode-cmd conf-map))
-    (sh! (shell-channel master-session) (:jobtracker-cmd conf-map))
-    (dorun (pmap
-            #(sh! (shell-channel %) (:tasktracker-cmd conf-map))
-            slave-sessions))
-    (repl-cmd config master-session)))
-
 
 ;;TODO parralelize launching instances?
 ;; clean up massive let binding, remove duplicate code
