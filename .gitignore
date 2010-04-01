@@ -1,11 +1,17 @@
 build
 target
 lib
+*.dot
+
 # use glob syntax.
 syntax: glob
-*.jar
+creds.clj
+Manifest.txt
+pom.xml
+aws.clj
 *.ser
 *.class
+*.jar
 *~
 *.bak
 *.off
