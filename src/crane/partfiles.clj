@@ -35,7 +35,3 @@
   (map 
    read-string
    (.split s "\n")))
-
-(defn partfile-dirs->clj [s3 n root-bucket rest]
-  (for [x (range 1 (+ 1 n))]
-    (partfiles->clj s3 root-bucket (str-join "/" [rest x]))))
