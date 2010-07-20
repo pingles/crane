@@ -1,4 +1,4 @@
-(ns
+<(ns
  #^{:doc
     "crane.cluster doc
 -all 'ec2' arguments require an instance of Jec2 class.
@@ -32,7 +32,7 @@ Optional keys in config {}
  (:use clojure.contrib.shell-out)
  (:use clojure.contrib.duck-streams)
  (:use clojure.contrib.java-utils)
- (:use crane.ssh2)
+ (:use clj-ssh.ssh)
  (:use crane.ec2)
  (:use crane.config)
  (:use clojure.xml)
@@ -148,11 +148,16 @@ be advised that find master returns nil if the master has been reserved but is n
   [instance config]
   (let
     [creds (creds (:creds config))]
-    (block-until-connected
-  (session
-   (:private-key-path creds)
-   (:hadoopuser config)
-   (:public (attributes instance))))))
+    (with-ssh-agent []
+      (add-identity (:private-key-path creds))
+      (let [inst (:public (attributes instance))
+            session (session inst :username "root" :strict-host-key-checking :no)]
+        (while (not (connected? session))
+          (try (connect session)
+               (catch com.jcraft.jsch.JSchException e
+                 (println (str "waiting for hadoop-machine-session: " inst))
+                 (Thread/sleep 1000)
+                 (hadoop-machine-session instance config))))))))
 
 (defn make-classpath [config]
   (apply str (:hadooppath config) "/conf:"
@@ -166,13 +171,6 @@ be advised that find master returns nil if the master has been reserved but is n
   (Socket. master 8080))
 
 ;;TODO remove config files and launch cmds if not necessary eg: some people don't use hdfs
-
-(defn repl-cmd
-  [config sess]
-  (future [] (sh! (exec-channel sess)
-                  (str "java -Xmx4096m -cp "
-                  (make-classpath config)
-                  " swank.swank"))))
 
 (defn hadoop-conf
 "creates configuration, and remote shell-cmd map."
@@ -207,6 +205,16 @@ be advised that find master returns nil if the master has been reserved but is n
   (conj (slave-sessions ec2 config)
         (master-session ec2 config)
         (name-session ec2 config)))
+
+;; push fn which takes either a [session] or a collection of
+;; [session-from-to] tuples
+
+(defn push
+  ([session from to] (push [[session from to]]))
+  ([session-from-to]
+     (doall (pmap (fn [[session from to]]
+                    (sftp session :put from to))))))
+
 
 (defn push-mapred [ec2 config]
   (let [mapred-file (create-mapred-site (:mapredsite config)
@@ -263,16 +271,10 @@ be advised that find master returns nil if the master has been reserved but is n
 
 (defn start-services [ec2 config]
   (let [cmds (hadoop-conf config)]
-    (sh! (shell-channel
-          (name-session ec2 config))
-         (:namenode-cmd cmds))
-    (sh! (shell-channel
-          (master-session ec2 config))
-          (:jobtracker-cmd cmds))
+    (ssh (name-session ec2 config :in (:namenode-cmd cmds))
+    (ssh (master-session ec2 config) :in (:jobtracker-cmd cmds))
     (dorun (pmap
-            #(sh! (shell-channel %) (:tasktracker-cmd cmds))
-            (slave-sessions ec2 config)))
-    (repl-cmd config (master-session ec2 config))))
+            #(ssh % :in (:tasktracker-cmd cmds)) (slave-sessions ec2 config))))))
 
 (defn launch-machines [ec2 config]
   (doall (pmap
@@ -287,10 +289,6 @@ be advised that find master returns nil if the master has been reserved but is n
   [launch-machines
   push-all
   start-services])))
-
-;;TODO parralelize launching instances?
-;; clean up massive let binding, remove duplicate code
-;; pull add slaves out of cluster.clj?
 
 (defn master-ips
 "returns list of namenode and jobtracker external ip addresses"
@@ -307,65 +305,3 @@ be advised that find master returns nil if the master has been reserved but is n
 "returns jobtracker private address as string"
   [ec2 config]
   (str (:private (attributes (find-master ec2 (:group config)))) ":9000"))
-
-(defn master-sessions
-"bring up ssh sessions to master ips.  For slave file append"
-  [addresses config]
-  (let [cred (creds (:creds config))]
-  (map
-   #(block-until-connected (session (:private-key-path cred)
-                                    (:hadoopuser config) %))
-   addresses)))
-
-(defn slaves-cmd
-"command to redirect a list of slaves to the conf/slaves file on masters"
-  [slaves-str config]
-  (str "echo -e '" slaves-str "' > " (:hadooppath config) "/conf/slaves"))
-
-(defn start-daemons-cmd
-"returns string that will start dfs and tasktracker daemons
-when used in a shell channel"
-  [config]
-  (str "cd "
-       (:hadooppath config)
-       " && bin/hadoop-daemon.sh start datanode"
-       " && bin/hadoop-daemon.sh start tasktracker"))
-
-;;workflow for adding nodes
-;; launch slaves in  slaves group
-;; append slaves file on jobtracker and namenode with new slaves
-;; scp config files to new slaves
-;; start services on slave nodes
-
-(defn add-nodes
-"adds num of nodes to already running cluster, in (:group config)
-Requires the same arguments "
-  [ec2 num config]
-  (let
-    [conf (merge config
-                 {:instances (+ (count (running-instances ec2 (:group config)))
-                                num)})
-     new-nodes (launch-slave-machines ec2 conf)
-     nodes-str (get-slaves-str new-nodes)
-     mapred-site (create-mapred-site (:mapredsite config) (jt-private ec2 config))
-     core-site (create-core-site (:coresite config) (nn-private ec2 config))
-     conf-map (hadoop-conf config)
-     masters-sess (master-sessions (master-ips ec2 config) config)
-     nodes-sessions (map
-                      #(hadoop-machine-session % config)
-                      new-nodes)]
-  (dorun (map
-           #(scp % mapred-site (:mapredsite-file conf-map))
-           nodes-sessions))
-  (dorun (map
-           #(scp % core-site (:coresite-file conf-map))
-           nodes-sessions))
-  (dorun (map
-           #(scp % (:hdfs-site conf-map) (:hdfssite-file conf-map))
-           nodes-sessions))
-  (dorun (pmap
-           #(sh! (shell-channel %) (slaves-cmd nodes-str config))
-           masters-sess))
-  (dorun (pmap
-           #(sh! (shell-channel %) (start-daemons-cmd config))
-           nodes-sessions))))

@@ -17,8 +17,8 @@ http://clojure101.blogspot.com/2009/05/creating-clojure-repl-in-your.html
 	  [java.io InputStreamReader OutputStreamWriter]
 	  [clojure.lang LineNumberingPushbackReader])
  (:use [clojure.contrib shell-out server-socket duck-streams])
- (:use crane.ec2)
- (:use crane.ssh2))
+ (:use clj-ssh.ssh)
+ (:use crane.ec2))
 
 
 (defn research-repl 

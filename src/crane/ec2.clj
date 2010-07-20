@@ -12,7 +12,9 @@ You can not block on isRunning from an instance becasue the instance is not re-p
   crane.ec2
   (:use clojure.contrib.seq-utils)
   (:use clojure.contrib.shell-out)
-  (:use crane.ssh2)
+  (:use clj-ssh.ssh)
+
+  (:use [clj-ssh [ssh :as s]])
   (:use crane.config)
   (:import java.io.File)
   (:import java.util.ArrayList)
@@ -106,7 +108,7 @@ You can not block on isRunning from an instance becasue the instance is not re-p
       ;;setKernelId(String kernelId)
       ;;setMonitoring(boolean set)
       ;;setRamdiskId(String ramdiskId)
-      (.setAvailabilityZone zone)   
+;;      (.setAvailabilityZone zone)   
       (.setInstanceType instance-type)
       (.setKeyName key-name)
       (.setSecurityGroup groups)
@@ -206,12 +208,23 @@ it is returning the single first instance, maybe it should return all instances?
        ec2 
        (merge conf {:instances 1})))))
 
+;; ssh2 args [string private-key string username string hostname]
+
+;; block until connected:
+;; the recursion of block-until-connected has been moved to this fn
+;; since deprecating crane.ssh2.  if something is wrong it could be
+;; stuck in an infinite loop.
+
 (defn ec2-session 
   "launching an instance with an open repl session over ssh."
   [ec2 conf]
-  (let [machine (ec2-instance ec2 conf)]
-    (block-until-connected 
-     (session 
-      (:private-key-path (creds (:creds conf)))
-      "root" 
-      (:public (attributes machine))))))
+  (with-ssh-agent []
+    (add-identity (:private-key-path (creds (:creds conf))))
+    (let [machine (ec2-instance ec2 conf)
+          session (session (:public (attributes machine)) :username "root")]
+      (while (not (connected? session)) 
+        (try (connect session)
+             (catch com.jcraft.jsch.JSchException e
+               (println "Waiting for session to connect...")
+               (Thread/sleep 10000)
+               (ec2-session ec2 conf)))))))
