@@ -10,7 +10,6 @@ http://richhickey.github.com/clojure-contrib/server-socket-api.html
 http://travis-whitton.blogspot.com/2009/09/hot-code-swapping-with-clojure.html
 http://clojure101.blogspot.com/2009/05/creating-clojure-repl-in-your.html
 
-
 "}
  crane.remote-repl
  (:import [java.net ServerSocket Socket SocketException]
@@ -19,7 +18,6 @@ http://clojure101.blogspot.com/2009/05/creating-clojure-repl-in-your.html
  (:use [clojure.contrib shell-out server-socket duck-streams])
  (:use crane.ec2)
  (:use crane.ssh2))
-
 
 (defn research-repl 
 "
@@ -36,20 +34,15 @@ useages: (def my-repl (research-repl \"/some/path/*:/some/jars/a.jar\"))
   " -cp " path  
   " jline.ConsoleRunner clojure.lang.Repl")))
 
-(defn safe-read [s]
- (try (read-string s)
-      (catch java.lang.RuntimeException _ s)))
-
 ;;TODO: should all reading is the ByteArrayOutputStream approach in remote_repl read-command-output?
 (defn eval!
 "
 eval some code in the remote repl session on the given socket.
 
-setup server and client as
-push necessary deps and star repl on remote machine.
+push necessary deps and start repl on remote machine.
 start a server with: (def server (create-repl-server 8080))
 get a client socket with: (def client (new Socket \"localhost\" 8080))
-
+eval on client: (eval! client '(+ 1 2))
 
 a perhaps better implimentation would be:
 
