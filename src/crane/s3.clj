@@ -5,6 +5,9 @@ a lib for interacting with s3.
 "}
 crane.s3
   (:use clj-serializer.core)
+  (:import (clj_serializer Serializer)
+           (java.io DataOutputStream ByteArrayOutputStream
+                    DataInputStream ByteArrayInputStream))
   (:require [clojure.contrib.duck-streams :as ds])
   (:import java.io.File)
   (:import org.jets3t.service.S3Service)
@@ -52,103 +55,64 @@ example: (pprint
 
 (defn mkdir [path] (.mkdir (File. path)))
 
-
-;;TODO: change a lot of the multimethod foo to be like copy from duck-streams
-(defn puts 
-([connection bucket key data] [(class key) (class data)])
-([connection bucket data] [(class data)]))
-
-(defmulti s3-put puts)
-
-(defmethod 
-#^{:doc
-"
-http://jets3t.s3.amazonaws.com/api/index.html
-
-Create an object representing a file:
-bucket, file -> s3-object.
-"}
-s3-put [java.io.File]
-[s3 bucket-name file]
-  	(let [bucket (.getBucket s3 bucket-name) s3-object (S3Object. bucket file)]
-      (.putObject s3 bucket s3-object)))
-
-(defmethod 
-#^{:doc
-"
-Create an object representing text data:
-bucket, key, string -> s3-object
-"}
-s3-put [String String] 
-  [s3 bucket-name key data]
-  (let [bucket (.getBucket s3 bucket-name)
-        s3-object (S3Object. bucket key data)]
-    (.putObject s3 bucket s3-object)))
-
-(defmethod
-#^{:doc
-"
-Create an object representing a file at a certian key:
-bucket, file, key -> s3-object.
-"}
-s3-put [String java.io.File]
-  [connection bucket-name key file]
-    (let [bucket (.getBucket connection bucket-name) s3-object (S3Object. bucket file)]
-	  (.setKey s3-object key)
-	  (.putObject connection bucket s3-object)))
-
-(defn obj-to-str [obj]
-  (ServiceUtils/readInputStreamToString (.getDataInputStream obj) "UTF-8"))
-
-;;returns as string
-(defn s3-get [s3 bucket-name key]
-  (let [bucket (.getBucket s3 bucket-name)
-        obj (.getObject s3 bucket key)]
-    (obj-to-str obj)))
-
-(defn s3-byte-get [s3 bucket-name key]
-  (let [bucket (.getBucket s3 bucket-name)
-        obj (.getObject s3 bucket key)]
-    (deserialize (.getDataInputStream obj) (Object.))))
-
-(defn s3-byte-put [s3 bucket-name key clj]
-  (let [bucket (.getBucket s3 bucket-name)  
-        s3-object (S3Object. bucket key)
-	_ (.setDataInputStream (serialize clj))]
-    (.putObject s3 bucket s3-object)))
+(defn put-file
+  ([s3 bucket-name file]
+     (let [bucket (.getBucket s3 bucket-name)
+	   s3-object (S3Object. bucket file)]
+       (.putObject s3 bucket s3-object)))
+  ([connection bucket-name key file]
+     (let [bucket (.getBucket connection bucket-name)
+	   s3-object (S3Object. bucket file)]
+       (.setKey s3-object key)
+       (.putObject connection bucket s3-object))))
 
 (defn files [dir]
   (for [file (file-seq (File. dir))
 	      :when (.isFile file)]
 	     file))
 
-(defn s3->clj
-"read the object(s) at the root/rest s3 uri into memory.
-
-apply the rdr passed in to read the raw strings from the files."
- [s3 root-bucket rest rdr]
-  (let [files (without-folders (objects s3 root-bucket rest))
-	downloaded-files (for [f files] (rdr (s3-get s3 root-bucket (.getKey f))))]
-    downloaded-files))
-
-(defn dir->s3
-"create a new bucket b.
-
-copy everything from dir d to bucket b."
+(defn put-dir
+"create a new bucket b. copy everything from dir d to bucket b."
 [s3 d b]
     (create-bucket s3 b)
     (dorun 
       (for [f (files d)]
-	     (s3-put s3 b f))))
+	     (put-file s3 b f))))
 
-(defn s3->dir
-"create a new dir d.
+(defn put-str
+ [s3 bucket-name key data]
+  (let [bucket (.getBucket s3 bucket-name)
+        s3-object (S3Object. bucket key data)]
+    (.putObject s3 bucket s3-object)))
 
-copy everything from bucket b to dir rooted at d with each object at dir/bucket-name/key."
- [s3 b d]
-;;TODO: this probably doesn't work -> need to mkdir for each of the paths that are part fo bucketname and key.
-    (mkdir d)
-    (dorun 
-      (for [obj (objects b)
-	    cont (s3-get s3 b obj)]
-	(spit (ds/file-str d (.getBucketName obj) (.getKey obj)) cont))))
+(defn put-clj [s3 bucket-name key clj]
+  (let [bucket (.getBucket s3 bucket-name)  
+        s3-object (S3Object. bucket key)
+	_ (.setDataInputStream s3-object (ByteArrayInputStream. (serialize clj)))]
+    (.putObject s3 bucket s3-object)))
+
+(defn obj-to-str [obj]
+  (ServiceUtils/readInputStreamToString (.getDataInputStream obj) "UTF-8"))
+
+(defn get-str [s3 bucket-name key]
+  (let [bucket (.getBucket s3 bucket-name)
+        obj (.getObject s3 bucket key)]
+    (obj-to-str obj)))
+
+(defn s3-deserialize [is eof-val]
+  (let [dis (DataInputStream. is)]
+    (Serializer/deserialize dis eof-val)))
+
+(defn get-clj [s3 bucket-name key]
+  (let [bucket (.getBucket s3 bucket-name)
+        obj (.getObject s3 bucket key)]
+    (s3-deserialize
+     (.getWrappedInputStream (.getDataInputStream obj))
+     (Object.))))
+
+(defn get-dir
+"read the object(s) at the root/rest s3 uri into memory using a s3/get-foo fn."
+ [s3 root-bucket rest rdr]
+  (let [files (without-folders (objects s3 root-bucket rest))]
+    (map #(rdr s3 root-bucket (.getKey %)) files)))
+
