@@ -2,11 +2,10 @@
 #^{:doc 
 "
 a lib for interacting with s3.
-
-todo: use or merge with: http://github.com/stuartsierra/altlaw-backend/blob/802ac86dff0a5d1c3980df6fbd101ed429d3c5e8/src/org/altlaw/util/s3.clj
 "}
 crane.s3
-  (:use clojure.contrib.duck-streams)
+  (:use clj-serializer.core)
+  (:require [clojure.contrib.duck-streams :as ds])
   (:import java.io.File)
   (:import org.jets3t.service.S3Service)
   (:import org.jets3t.service.impl.rest.httpclient.RestS3Service)
@@ -82,7 +81,7 @@ bucket, key, string -> s3-object
 "}
 s3-put [String String] 
   [s3 bucket-name key data]
-  (let [bucket (.getBucket s3 bucket-name)  
+  (let [bucket (.getBucket s3 bucket-name)
         s3-object (S3Object. bucket key data)]
     (.putObject s3 bucket s3-object)))
 
@@ -107,12 +106,22 @@ s3-put [String java.io.File]
         obj (.getObject s3 bucket key)]
     (obj-to-str obj)))
 
+(defn s3-byte-get [s3 bucket-name key]
+  (let [bucket (.getBucket s3 bucket-name)
+        obj (.getObject s3 bucket key)]
+    (deserialize (.getDataInputStream obj) (Object.))))
+
+(defn s3-byte-put [s3 bucket-name key clj]
+  (let [bucket (.getBucket s3 bucket-name)  
+        s3-object (S3Object. bucket key)
+	_ (.setDataInputStream (serialize clj))]
+    (.putObject s3 bucket s3-object)))
+
 (defn files [dir]
   (for [file (file-seq (File. dir))
 	      :when (.isFile file)]
 	     file))
 
-;;TODO: multimethod like copy s3->local and local->s3 for (clj,string,file,dir).
 (defn s3->clj
 "read the object(s) at the root/rest s3 uri into memory.
 
@@ -142,4 +151,4 @@ copy everything from bucket b to dir rooted at d with each object at dir/bucket-
     (dorun 
       (for [obj (objects b)
 	    cont (s3-get s3 b obj)]
-	(spit (file-str d (.getBucketName obj) (.getKey obj)) cont))))
+	(spit (ds/file-str d (.getBucketName obj) (.getKey obj)) cont))))

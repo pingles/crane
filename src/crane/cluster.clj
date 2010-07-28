@@ -28,7 +28,6 @@ Optional keys in config {}
  
  crane.cluster
  (:require [clojure.zip :as zip])
- (:use clojure.contrib.seq-utils)
  (:use clojure.contrib.shell-out)
  (:use clojure.contrib.duck-streams)
  (:use clojure.contrib.java-utils)

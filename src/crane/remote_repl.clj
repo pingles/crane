@@ -67,5 +67,5 @@ a perhaps better implimentation would be:
       (let [l (.readLine in)]
 	;;deals with the case of the repl form: "clojure.core=> 6"
 	(if-let [result (second (.split l ">"))]
-	  (safe-read result)
+	  result
 	  l)))))

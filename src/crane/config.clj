@@ -1,5 +1,5 @@
 (ns crane.config
-  (:use clojure.contrib.duck-streams)
+  (:require [clojure.contrib.duck-streams :as ds])
   (:use clojure.contrib.java-utils)
   (:import [com.xerox.amazonws.ec2 Jec2 
 	    InstanceType LaunchConfiguration
@@ -25,7 +25,7 @@
 (defn user-data 
 "read user data file from the config-path given and replace the aws key and secrey key with those from the creds-path given."
 ([config-path creds]
-  (let [data (slurp* config-path)]
+  (let [data (ds/slurp* config-path)]
     (replace-all data
       [["AWS_ACCESS_KEY_ID" (:key creds)]
        ["AWS_SECRET_ACCESS_KEY" (:secretkey creds)]])))
@@ -47,7 +47,7 @@ useage: (read-string (slurp* (conf \"/foo/bar/creds/\"))))
 "
   [path]
   (let [config (read-string 
-		(slurp* (file-str path "aws.clj")))]
+		(ds/slurp* (ds/file-str path "aws.clj")))]
     (merge config
 	   {:instance-type ((:instance-type config) instance-types)})))
 
@@ -56,7 +56,7 @@ useage: (read-string (slurp* (conf \"/foo/bar/creds/\"))))
 provide the path to your hadoop config directory containing 
 hadoop-ec2-init-remote.sh
 "
-[path] (file-str path "hadoop-ec2-init-remote.sh"))
+[path] (ds/file-str path "hadoop-ec2-init-remote.sh"))
 
 (defn creds 
 "provide the path to your creds home directory containing creds.clj
@@ -69,4 +69,4 @@ key secrey-key pair stored in map as:
 useage: (read-string (slurp* (creds \"/foo/bar/creds/\"))))
 
 "
-[path] (read-string (slurp* (file-str path "creds.clj"))))
+[path] (read-string (ds/slurp* (ds/file-str path "creds.clj"))))

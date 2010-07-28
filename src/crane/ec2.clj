@@ -10,11 +10,8 @@ http://typica.s3.amazonaws.com/index.html)
 You can not block on isRunning from an instance becasue the instance is not re-polling the server for status, the status that an in memory instance seems to ahve is based on the time the instance object was instantiated, not what is happenign right now.
 "}
   crane.ec2
-  (:use clojure.contrib.seq-utils)
   (:use clojure.contrib.shell-out)
   (:use clj-ssh.ssh)
-
-  (:use [clj-ssh [ssh :as s]])
   (:use crane.config)
   (:import java.io.File)
   (:import java.util.ArrayList)
