@@ -1,4 +1,4 @@
-# Crane
+# crane
 ## Deployment, Configuration, Cloud Services, and Distributed Computing Infrastructure in Clojure
 
 Crane wraps amazon libs typica and jets3t for compute via ec2, blog storage via s3, queue service via sqs, and it uses clj-ssh for ssh.
@@ -55,7 +55,7 @@ To build:
 4. $ lein install
 
 
-## Crane is part of clj-sys http://github.com/clj-sys
+## crane is part of clj-sys http://github.com/clj-sys
 
 - Conciseness, but not at the expense of expressiveness, explicitness, abstraction, and composability.
 
@@ -69,4 +69,4 @@ To build:
 
 - Write tests.
 
-- Copyright (c) Bradford Cross released under the MIT License (http://www.opensource.org/licenses/mit-license.php).
+- Copyright (c) Bradford Cross and Jared Strate released under the MIT License (http://www.opensource.org/licenses/mit-license.php).
