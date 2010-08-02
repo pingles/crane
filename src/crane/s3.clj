@@ -101,13 +101,17 @@ example: (pprint
 
 (defn s3-deserialize [is eof-val]
   (let [dis (DataInputStream. is)]
-    (Serializer/deserialize dis eof-val)))
+    (try 
+     (Serializer/deserialize dis eof-val)
+  (finally 
+   (.close dis)))))
 
 (defn get-clj [s3 bucket-name key]
   (let [bucket (.getBucket s3 bucket-name)
         obj (.getObject s3 bucket key)]
     (s3-deserialize
-     (.getWrappedInputStream (.getDataInputStream obj))
+      (.getWrappedInputStream 
+      (.getDataInputStream obj))
      (Object.))))
 
 (defn get-dir
