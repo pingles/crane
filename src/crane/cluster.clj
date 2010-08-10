@@ -156,7 +156,8 @@ be advised that find master returns nil if the master has been reserved but is n
                (catch com.jcraft.jsch.JSchException e
                  (println (str "waiting for hadoop-machine-session: " inst))
                  (Thread/sleep 1000)
-                 (hadoop-machine-session instance config))))))))
+                 (hadoop-machine-session instance config))))
+          session))))
 
 (defn make-classpath [config]
   (apply str (:hadooppath config) "/conf:"
@@ -270,10 +271,10 @@ be advised that find master returns nil if the master has been reserved but is n
 
 (defn start-services [ec2 config]
   (let [cmds (hadoop-conf config)]
-    (ssh (name-session ec2 config :in (:namenode-cmd cmds))
+    (ssh (name-session ec2 config) :in (:namenode-cmd cmds))
     (ssh (master-session ec2 config) :in (:jobtracker-cmd cmds))
     (dorun (pmap
-            #(ssh % :in (:tasktracker-cmd cmds)) (slave-sessions ec2 config))))))
+            #(ssh % :in (:tasktracker-cmd cmds)) (slave-sessions ec2 config)))))
 
 (defn launch-machines [ec2 config]
   (doall (pmap
